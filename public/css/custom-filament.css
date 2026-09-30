@@ -1,0 +1,679 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* Terapkan font secara global ke semua elemen UI */
+body, 
+.fi-body, 
+.fi-sidebar, 
+.fi-header, 
+.fi-ta, 
+.fi-wi, 
+.fi-modal,
+input, 
+button, 
+select,
+textarea {
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+
+:root {
+    --bg-gradient-start: #E2E8F0; /* Soft Slate */
+    --bg-gradient-end: #F8FAFC;
+    --text-muted: #64748B;
+    --border-soft: #E2E8F0;
+    --mc-navy: #1D3557;
+}
+
+
+.fi-body {
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%) !important;
+    background-attachment: fixed !important;
+}
+
+/* Sidebar menyatu & bersih */
+.fi-sidebar {
+    border-right: none !important;
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(12px);
+}
+
+
+.fi-wi, .fi-ta, .fi-section, .fi-modal-window {
+    background-color: #ffffff !important;
+    border: none !important;
+    border-radius: 1.25rem !important; /* Lengkungan 20px */
+    box-shadow: 0 10px 40px -10px rgba(15, 23, 42, 0.06) !important;
+    transition: all 0.3s ease;
+}
+
+/* Efek saat kursor diarahkan ke kartu statistik */
+.fi-wi:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 40px -8px rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Overlay modal berkesan gelap transparan */
+.fi-modal-close-overlay {
+    background-color: rgba(15, 23, 42, 0.3) !important;
+    backdrop-filter: blur(4px) !important;
+}
+
+
+.fi-ta-content {
+    border: none !important;
+    border-radius: 1.25rem !important;
+}
+
+
+.fi-ta-header-cell {
+    background-color: #F8FAFC !important;
+    color: var(--text-muted) !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+    border-bottom: 1px solid var(--border-soft) !important;
+}
+
+.fi-ta-header-cell:first-child { border-top-left-radius: 1.25rem !important; }
+.fi-ta-header-cell:last-child { border-top-right-radius: 1.25rem !important; }
+
+/* Baris Tabel & Efek Hover */
+.fi-ta-row {
+    border-bottom: 1px solid var(--border-soft) !important;
+    transition: background-color 0.2s ease;
+}
+.fi-ta-row:hover {
+    background-color: #F8FAFC !important;
+}
+
+
+.fi-input-wrapper {
+    border-radius: 1rem !important;
+    border: 1px solid var(--border-soft) !important;
+    box-shadow: none !important;
+}
+
+/* Badge status berbentuk pil oval */
+.fi-badge {
+    border-radius: 9999px !important;
+    padding: 0.25rem 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    font-size: 0.65rem !important;
+    border: none !important;
+}
+
+/* Tombol Aksi Tabel (Aksi / Edit / Delete) */
+.fi-ta-actions .fi-icon-btn, .fi-ta-actions .fi-btn {
+    border-radius: 0.75rem !important;
+    border: 1px solid var(--border-soft) !important;
+    background-color: #ffffff !important;
+    color: var(--text-muted) !important;
+}
+.fi-ta-actions .fi-icon-btn:hover, .fi-ta-actions .fi-btn:hover {
+    background-color: #F1F5F9 !important;
+    color: #1E293B !important;
+}
+
+
+.fi-header-heading {
+    font-weight: 800 !important;
+    color: #1E293B !important;
+    letter-spacing: -0.02em;
+}
+
+
+.fi-simple-layout {
+    background: radial-gradient(circle at 50% 30%, #e2e8f0 0%, #cbd5e1 100%) !important;
+    position: relative;
+    min-height: 100vh;
+}
+
+/* Lingkaran cahaya dekoratif di latar belakang */
+.fi-simple-layout::before {
+    content: '';
+    position: absolute;
+    width: 350px;
+    height: 350px;
+    background: #3b82f6;
+    filter: blur(140px);
+    opacity: 0.2;
+    top: 20%;
+    left: 35%;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* Card Login Melayang & Efek Kaca (Glassmorphism) */
+.fi-simple-main {
+    background: rgba(255, 255, 255, 0.85) !important;
+    backdrop-filter: blur(20px) !important;
+    border-radius: 1.75rem !important; /* Lengkungan sudut besar */
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.9) !important;
+    padding: 2.5rem !important;
+}
+
+/* Judul 'Sign in' lebih tegas */
+.fi-simple-header-heading {
+    font-weight: 800 !important;
+    color: #1D3557 !important;
+    font-size: 1.6rem !important;
+    letter-spacing: -0.03em !important;
+}
+
+/* Tombol Sign In dengan efek Glow & Shadow */
+.fi-simple-main button[type="submit"] {
+    border-radius: 0.85rem !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.4) !important;
+    transition: all 0.25 ease !important;
+}
+
+.fi-simple-main button[type="submit"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 12px 25px -4px rgba(37, 99, 235, 0.5) !important;
+}
+
+.fi-sidebar-item-icon {
+    width: 2.1rem !important;
+    height: 2.1rem !important;
+    padding: 6px !important;
+    border-radius: 0.6rem !important;
+    background-color: #F1F5F9 !important; /* Warna dasar kotak ikon */
+    color: #64748B !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+/* Efek saat menu di-sorot (hover) */
+.fi-sidebar-item:hover .fi-sidebar-item-icon {
+    background-color: #E2E8F0 !important;
+    color: #1E293B !important;
+    transform: scale(1.05);
+}
+
+/* Efek saat menu sedang AKTIF/DIBUKA */
+.fi-sidebar-item-active .fi-sidebar-item-icon {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important; /* Efek glow biru */
+}
+
+/* Rapikan jarak teks menu dengan ikon */
+.fi-sidebar-item-label {
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+}
+
+/* =========================================
+   11. KARTU STATISTIK & WIDGET LAPORAN (PREMIUM)
+========================================== */
+/* Box Statistik Berwarna Soft Tint */
+.fi-wi-stats-overview-stat {
+    border-radius: 1rem !important;
+    border: 1px solid #E2E8F0 !important;
+    background-color: #FFFFFF !important;
+    transition: all 0.25s ease-in-out !important;
+}
+
+.fi-wi-stats-overview-stat:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: 0 12px 24px -6px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Penataan Angka & Subteks */
+.fi-wi-stats-overview-stat-value {
+    font-size: 1.85rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.03em !important;
+}
+
+/* Badge Kolom Tabel khusus Laporan */
+.fi-ta-cell .fi-badge {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+.laporan-card {
+    background: #ffffff !important;
+    border-radius: 1.25rem !important;
+    padding: 1.5rem !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04) !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    gap: 1.25rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+@media (min-width: 768px) {
+    .summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+.stat-box {
+    background: #ffffff !important;
+    border-radius: 1rem !important;
+    border: 1px solid #E2E8F0 !important;
+    padding: 1.25rem 1.5rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03) !important;
+}
+
+.stat-title {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    color: #64748B !important;
+    letter-spacing: 0.05em !important;
+}
+
+.stat-value {
+    font-size: 2rem !important;
+    font-weight: 800 !important;
+    margin-top: 0.25rem !important;
+    letter-spacing: -0.02em !important;
+}
+
+.stat-value-masuk { color: #059669 !important; }
+.stat-value-keluar { color: #E11D48 !important; }
+.stat-value-total { color: #0F172A !important; }
+
+.stat-icon-box {
+    width: 3rem !important;
+    height: 3rem !important;
+    border-radius: 0.85rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.stat-icon-masuk { background: #ECFDF5 !important; color: #059669 !important; }
+.stat-icon-keluar { background: #FFF1F2 !important; color: #E11D48 !important; }
+.stat-icon-total { background: #EFF6FF !important; color: #2563EB !important; }
+
+/* Table Laporan */
+.laporan-table-container {
+    background: #ffffff !important;
+    border-radius: 1.25rem !important;
+    border: 1px solid #E2E8F0 !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04) !important;
+}
+
+.laporan-table {
+    width: 100% !important;
+    text-align: left !important;
+    font-size: 0.875rem !important;
+    border-collapse: collapse !important;
+}
+
+.laporan-table th {
+    background: #F8FAFC !important;
+    padding: 1rem 1.25rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    color: #64748B !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.laporan-table td {
+    padding: 1rem 1.25rem !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    vertical-align: middle !important;
+}
+
+.laporan-table tbody tr:hover {
+    background-color: #F8FAFC !important;
+}
+
+/* Badge Pill Jenis */
+.badge-pill-masuk {
+    background: #ECFDF5 !important;
+    color: #047857 !important;
+    padding: 0.3rem 0.8rem !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+.badge-pill-keluar {
+    background: #FFF1F2 !important;
+    color: #BE123C !important;
+    padding: 0.3rem 0.8rem !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+.badge-pill-transfer {
+    background: #F0F9FF !important;
+    color: #0369A1 !important;
+    padding: 0.3rem 0.8rem !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+.kode-tag {
+    background: #F1F5F9 !important;
+    padding: 0.2rem 0.5rem !important;
+    border-radius: 0.375rem !important;
+    font-family: monospace !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    border: 1px solid #CBD5E1 !important;
+    margin-right: 0.5rem !important;
+}
+.laporan-table th, 
+.laporan-table td {
+    white-space: nowrap !important;
+}
+
+/* Lebar minimal untuk masing-masing kolom */
+.col-tanggal { min-width: 150px !important; }
+.col-notrans { min-width: 160px !important; }
+.col-jenis   { min-width: 110px !important; }
+.col-barang  { min-width: 250px !important; } /* Dibuat luas untuk nama barang panjang */
+.col-asal    { min-width: 150px !important; }
+.col-tujuan  { min-width: 200px !important; }
+.col-qty     { min-width: 100px !important; }
+
+/* Pembungkus Kode & Nama Barang agar sejajar rapi */
+.barang-wrapper {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    white-space: nowrap !important;
+}
+.laporan-table th, 
+.laporan-table td {
+    white-space: nowrap !important;
+}
+
+/* Lebar minimal untuk masing-masing kolom */
+.col-tanggal { min-width: 150px !important; }
+.col-notrans { min-width: 160px !important; }
+.col-jenis   { min-width: 110px !important; }
+.col-barang  { min-width: 250px !important; } /* Dibuat luas untuk nama barang panjang */
+.col-asal    { min-width: 150px !important; }
+.col-tujuan  { min-width: 200px !important; }
+.col-qty     { min-width: 100px !important; }
+
+/* Pembungkus Kode & Nama Barang agar sejajar rapi */
+.barang-wrapper {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    white-space: nowrap !important;
+}
+.laporan-card {
+    background: #ffffff !important;
+    border-radius: 1.25rem !important;
+    padding: 1.5rem !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04) !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    gap: 1.25rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+@media (min-width: 768px) {
+    .summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+.stat-box {
+    background: #ffffff !important;
+    border-radius: 1rem !important;
+    border: 1px solid #E2E8F0 !important;
+    padding: 1.25rem 1.5rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03) !important;
+}
+
+.stat-title {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    color: #64748B !important;
+    letter-spacing: 0.05em !important;
+}
+
+.stat-value {
+    font-size: 1.85rem !important;
+    font-weight: 800 !important;
+    margin-top: 0.25rem !important;
+    letter-spacing: -0.02em !important;
+}
+
+.stat-value-masuk  { color: #059669 !important; }
+.stat-value-keluar { color: #E11D48 !important; }
+.stat-value-total  { color: #0F172A !important; }
+
+.stat-icon-box {
+    width: 3rem !important;
+    height: 3rem !important;
+    border-radius: 0.85rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.stat-icon-masuk  { background: #ECFDF5 !important; color: #059669 !important; }
+.stat-icon-keluar { background: #FFF1F2 !important; color: #E11D48 !important; }
+.stat-icon-total  { background: #EFF6FF !important; color: #2563EB !important; }
+
+/* Table Laporan */
+.laporan-table-container {
+    background: #ffffff !important;
+    border-radius: 1.25rem !important;
+    border: 1px solid #E2E8F0 !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04) !important;
+}
+
+.laporan-table {
+    width: 100% !important;
+    text-align: left !important;
+    font-size: 0.875rem !important;
+    border-collapse: collapse !important;
+}
+
+.laporan-table th {
+    background: #F8FAFC !important;
+    padding: 1rem 1.25rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    color: #64748B !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    white-space: nowrap !important;
+}
+
+.laporan-table td {
+    padding: 1rem 1.25rem !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+}
+
+.laporan-table tbody tr:hover {
+    background-color: #F8FAFC !important;
+}
+
+/* Badge Pill */
+.badge-pill-masuk {
+    background: #ECFDF5 !important;
+    color: #047857 !important;
+    padding: 0.3rem 0.8rem !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+}
+.badge-pill-keluar {
+    background: #FFF1F2 !important;
+    color: #BE123C !important;
+    padding: 0.3rem 0.8rem !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+}
+.badge-pill-transfer {
+    background: #F0F9FF !important;
+    color: #0369A1 !important;
+    padding: 0.3rem 0.8rem !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+}
+.badge-pill-warning {
+    background: #FEF3C7 !important;
+    color: #B45309 !important;
+    padding: 0.3rem 0.8rem !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+}
+
+.kode-tag {
+    background: #F1F5F9 !important;
+    padding: 0.2rem 0.5rem !important;
+    border-radius: 0.375rem !important;
+    font-family: monospace !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    border: 1px solid #CBD5E1 !important;
+}
+
+.barang-wrapper {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    white-space: nowrap !important;
+}
+
+/* LEBAR KOLOM LEGA SAMA RATA */
+.col-tanggal    { min-width: 150px !important; }
+.col-notrans    { min-width: 160px !important; }
+.col-jenis      { min-width: 110px !important; }
+.col-barang     { min-width: 260px !important; }
+.col-material   { min-width: 260px !important; }
+.col-project    { min-width: 220px !important; }
+.col-asal       { min-width: 150px !important; }
+.col-tujuan     { min-width: 200px !important; }
+.col-bon        { min-width: 140px !important; }
+.col-item       { min-width: 100px !important; }
+.col-qty        { min-width: 110px !important; }
+.col-keterangan { min-width: 220px !important; }
+.col-saldo      { min-width: 130px !important; }
+
+.fi-wi-stats-overview {
+    gap: 1.25rem !important;
+}
+
+.fi-wi-stats-overview-stat {
+    background-color: #ffffff !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 1.25rem !important;
+    padding: 1.25rem 1.5rem !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03) !important;
+    transition: all 0.25s ease-in-out !important;
+}
+
+.fi-wi-stats-overview-stat:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 25px -5px rgba(15, 23, 42, 0.08) !important;
+    border-color: #CBD5E1 !important;
+}
+
+/* Penataan Chart Widget Card */
+.fi-wi-chart {
+    background-color: #ffffff !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 1.25rem !important;
+    padding: 1.25rem !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03) !important;
+}
+
+.fi-dashboard-page .fi-widgets {
+    gap: 1.5rem !important;
+}
+
+/* 1. KARTU STATISTIK (StatsOverviewWidget) */
+.fi-wi-stats-overview-stat {
+    background-color: #ffffff !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 1.25rem !important;
+    padding: 1.25rem 1.5rem !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03) !important;
+    transition: all 0.25s ease-in-out !important;
+}
+
+.fi-wi-stats-overview-stat:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 25px -5px rgba(15, 23, 42, 0.08) !important;
+    border-color: #CBD5E1 !important;
+}
+
+/* 2. KARTU GRAFIK (TopBarangKeluarChart & TrenTransaksiChart) */
+.fi-wi-chart {
+    background-color: #ffffff !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 1.25rem !important;
+    padding: 1.25rem !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03) !important;
+}
+
+/* Header judul pada Grafik */
+.fi-wi-chart .fi-wi-chart-heading {
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    color: #1E293B !important;
+}
+
+/* 3. KARTU TABEL (BarangMenipisTable) */
+.fi-wi-table {
+    background-color: #ffffff !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 1.25rem !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03) !important;
+}
+
+.fi-wi-table .fi-ta-header {
+    background-color: #F8FAFC !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    padding: 1rem 1.25rem !important;
+}
