@@ -14,6 +14,10 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
+use Awcodes\TableRepeater\Components\TableRepeater;
+use Awcodes\TableRepeater\Header;
+use Filament\Tables\Actions\Action;
 
 class TransferGudangResource extends Resource
 {
@@ -23,6 +27,8 @@ class TransferGudangResource extends Resource
     protected static ?string $navigationLabel = 'Transfer Gudang';
     protected static ?string $navigationGroup = 'Stok Material';
     protected static ?string $slug = 'transfer-gudang';
+    protected static ?string $modelLabel = 'Transfer Gudang';
+    protected static ?string $pluralModelLabel = 'Transfer Gudang';
 
     public static function form(Form $form): Form
     {
@@ -77,13 +83,14 @@ class TransferGudangResource extends Resource
                                 ->label('Tujuan Penurunan Barang (Fisik)')
                                 ->options([
                                     'gudang' => '🏢 Antar Gudang Internal',
-                                    'project' => '🚚 Langsung Drop ke Site/Project',
+                                    'purchase_order' => '🚚 Langsung Drop ke Site/Project',
                                 ])
                                 ->default('gudang')
                                 ->required()
                                 ->live()
                                 ->afterStateUpdated(function (callable $set) {
                                     $set('tujuan_id', null);
+                                    $set('purchase_order_id', null);
                                 }),
                         ]),
 
@@ -99,7 +106,7 @@ class TransferGudangResource extends Resource
                                             ->map(fn ($nama) => (string) $nama)
                                             ->toArray();
                                     }
-                                    
+
                                     return PurchaseOrder::with('project')
                                         ->get()
                                         ->mapWithKeys(function (PurchaseOrder $po) {
@@ -110,36 +117,79 @@ class TransferGudangResource extends Resource
                                 })
                                 ->searchable()
                                 ->preload()
-                                ->required(),
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                    if ($state && $get('tujuan_type') === 'purchase_order') {
+                                        $po = PurchaseOrder::find($state);
+                                        if ($po && $po->project_id) {
+                                            foreach (($get('details') ?? []) as $key => $item) {
+                                                $set("details.{$key}.project_id", $po->project_id);
+                                            }
+                                        }
+                                    }
+                                }),
+                        ]),
+
+                        Forms\Components\Grid::make(1)->schema([
+                            Forms\Components\Select::make('purchase_order_id')
+                                ->label('Project')
+                                ->helperText('')
+                                ->options(function () {
+                                    return PurchaseOrder::with('project')
+                                        ->get()
+                                        ->mapWithKeys(function (PurchaseOrder $po) {
+                                            $namaProject = $po->project->nama_project ?? 'Tanpa Nama Project';
+                                            return [$po->id => "{$po->no_po} - {$namaProject}"];
+                                        })
+                                        ->toArray();
+                                })
+                                ->searchable()
+                                ->preload()
+                                ->live()
+                                ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                    if ($state) {
+                                        $po = PurchaseOrder::with('project')->find($state);
+                                        if ($po && $po->project) {
+                                            foreach (($get('details') ?? []) as $key => $item) {
+                                                $set("details.{$key}.project_id", $po->project->id);
+                                            }
+                                        }
+                                    }
+                                })
+                                ->visible(fn (callable $get) => $get('tujuan_type') === 'gudang'),
                         ]),
                     ]),
 
                 Forms\Components\Section::make('Rincian Barang yang Ditransfer')
                     ->schema([
-                        Forms\Components\Repeater::make('details')
+                        TableRepeater::make('details')
                             ->relationship('details')
+                            ->headers([
+                                Header::make('barang_id')->label('Nama Barang')->width('35%'),
+                                Header::make('qty')->label('Qty')->width('15%'),
+                                Header::make('satuan_id')->label('Satuan')->width('20%'),
+                                Header::make('project_id')->label('Alokasi Project')->width('30%'),
+                            ])
                             ->schema([
                                 Forms\Components\Select::make('barang_id')
-                                    ->label('Nama Barang')
                                     ->relationship('barang', 'nama_barang')
                                     ->getOptionLabelFromRecordUsing(fn ($record) => "[{$record->kode_barang}] {$record->nama_barang}")
                                     ->searchable(['kode_barang', 'nama_barang'])
                                     ->preload()
                                     ->required()
                                     ->live()
-                                    ->afterStateUpdated(fn (callable $set) => $set('satuan_id', null))
-                                    ->columnSpan(['md' => 4]),
+                                    ->afterStateUpdated(fn (callable $set) => $set('satuan_id', null)),
 
                                 Forms\Components\TextInput::make('qty')
-                                    ->label('Qty')
                                     ->numeric()
-                                    ->step(1)
-                                    ->minValue(1)
-                                    ->required()
-                                    ->columnSpan(['md' => 2]),
+                                    ->step('any')
+                                    ->minValue(0.01)
+                                    ->default(null)
+                                    ->placeholder('0')
+                                    ->required(),
 
                                 Forms\Components\Select::make('satuan_id')
-                                    ->label('Satuan')
                                     ->options(function (callable $get) {
                                         $barang = \App\Models\Barang::find($get('barang_id'));
                                         if (! $barang) {
@@ -156,19 +206,27 @@ class TransferGudangResource extends Resource
 
                                         return $options;
                                     })
-                                    ->required()
-                                    ->columnSpan(['md' => 3]),
+                                    ->required(),
 
                                 Forms\Components\Select::make('project_id')
-                                    ->label('Alokasi Project')
                                     ->relationship('project', 'nama_project')
                                     ->searchable()
                                     ->preload()
                                     ->nullable()
-                                    ->placeholder('Opsional')
-                                    ->columnSpan(['md' => 3]),
+                                    ->placeholder('Ikut project induk')
+                                    ->default(function (Forms\Get $get) {
+                                        $poId = $get('../../purchase_order_id');
+                                        if (! $poId && $get('../../tujuan_type') === 'purchase_order') {
+                                            $poId = $get('../../tujuan_id');
+                                        }
+
+                                        if ($poId) {
+                                            return PurchaseOrder::find($poId)?->project_id;
+                                        }
+
+                                        return null;
+                                    }),
                             ])
-                            ->columns(12)
                             ->defaultItems(1)
                             ->addActionLabel('＋ Tambah Item Transfer')
                             ->reorderable(false),
@@ -201,7 +259,21 @@ class TransferGudangResource extends Resource
                 Tables\Columns\TextColumn::make('tujuan')
                     ->label('Tujuan Penerima')
                     ->state(fn (TransaksiBarang $record): string => $record->namaTujuan())
-                    ->description(fn (TransaksiBarang $record): string => $record->tujuan_type === 'project' ? '🚚 Langsung ke Project' : '🏢 Antar Gudang')
+                    ->description(function (TransaksiBarang $record): string {
+                        if (in_array($record->tujuan_type, ['purchase_order', 'project'], true)) {
+                            return '🚚 Langsung ke Project';
+                        }
+
+                        $desc = '🏢 Antar Gudang';
+                        $project = $record->namaProjectTerkait();
+                        if ($project !== '-') {
+                            $desc .= " | 📌 Project: {$project}";
+                        }
+
+                        return $desc;
+                    })
+                    ->limit(45)
+                    ->tooltip(fn (TransaksiBarang $record): string => $record->namaTujuan())
                     ->sortable(false),
 
                 Tables\Columns\TextColumn::make('diterima_oleh')
@@ -214,8 +286,54 @@ class TransferGudangResource extends Resource
                     ->badge()
                     ->color('info'),
             ])
-            ->filters([])
+            ->filters([
+                // 💡 FILTER BERDASARKAN RENTANG TANGGAL
+                Tables\Filters\Filter::make('tanggal_transaksi')
+                    ->form([
+                        // Dibungkus Grid 2 kolom supaya dua tanggal berdampingan
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\DatePicker::make('dari_tanggal')
+                                ->label('Dari Tanggal')
+                                ->default(now()),
+
+                            Forms\Components\DatePicker::make('sampai_tanggal')
+                                ->label('Sampai Tanggal')
+                                ->default(now()),
+                        ]),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['dari_tanggal'],
+                                fn (Builder $q, $date): Builder => $q->whereDate('tanggal_transaksi', '>=', $date),
+                            )
+                            ->when(
+                                $data['sampai_tanggal'],
+                                fn (Builder $q, $date): Builder => $q->whereDate('tanggal_transaksi', '<=', $date),
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if ($data['dari_tanggal'] ?? null) {
+                            $indicators[] = 'Dari: ' . Carbon::parse($data['dari_tanggal'])->toFormattedDateString();
+                        }
+                        if ($data['sampai_tanggal'] ?? null) {
+                            $indicators[] = 'Sampai: ' . Carbon::parse($data['sampai_tanggal'])->toFormattedDateString();
+                        }
+                        return $indicators;
+                    }),
+            ])
+            // Filter tanggal di kiri, search di kanan (sejajar) — dibantu CSS global di AdminPanelProvider
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(2)
             ->actions([
+                Action::make('cetak_pdf')
+                    ->label('Cetak Bukti')
+                    ->icon('heroicon-o-printer')
+                    ->color('success')
+                    ->url(fn (TransaksiBarang $record): string => route('transaksi-barang.pdf', $record))
+                    ->openUrlInNewTab(),
+
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([

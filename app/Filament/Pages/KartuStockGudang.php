@@ -12,6 +12,11 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
+
+use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
+
 class KartuStockGudang extends Page implements HasTable
 {
     use InteractsWithTable;
@@ -23,6 +28,22 @@ class KartuStockGudang extends Page implements HasTable
     protected static ?int $navigationSort = 5;
 
     protected static string $view = 'filament.pages.kartu-stock-gudang';
+
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            ExportAction::make()
+                ->label('Export Excel')
+                ->color('success')
+                ->icon('heroicon-o-document-arrow-down')
+                ->exports([
+                    ExcelExport::make()
+                        ->fromTable()
+                        ->withFilename('Kartu_Stock_Gudang_' . date('Y-m-d')),
+                ]),
+        ];
+    }
 
     public function table(Table $table): Table
     {
@@ -47,7 +68,6 @@ class KartuStockGudang extends Page implements HasTable
                     ->sortable(),
 
                 // STOK UTAMA
-                // STOK UTAMA
                 Tables\Columns\TextColumn::make('stok')
                     ->label('Stok Utama')
                     ->formatStateUsing(function ($state, $record) {
@@ -60,7 +80,6 @@ class KartuStockGudang extends Page implements HasTable
                             $formatted = rtrim($formatted, ',');
                         }
 
-                        // 💡 PERBAIKAN: Ambil dari relasi satuan -> nama_satuan
                         $namaSatuan = $record->barang?->satuan?->nama_satuan ?? 'Pcs';
                         
                         return "{$formatted} {$namaSatuan}";
@@ -68,13 +87,11 @@ class KartuStockGudang extends Page implements HasTable
                     ->weight('bold')
                     ->sortable(),
 
-                // KOLOM STATUS (MENGGANTIKAN BREAKDOWN)
+                // KOLOM STATUS
                 TextColumn::make('status')
                     ->label('Status Stok')
                     ->badge()
                     ->state(function ($record) {
-                        // FIX: pakai float, bukan int, supaya barang bersatuan
-                        // desimal (Meter, Kg, Liter) tidak salah kebaca "Habis"
                         $stok = (float) $record->stok;
 
                         if ($stok <= 0) {
@@ -98,6 +115,18 @@ class KartuStockGudang extends Page implements HasTable
                 SelectFilter::make('gudang_id')
                     ->label('Pilih Gudang')
                     ->options(Gudang::pluck('nama_gudang', 'id')),
+            ])
+         
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    ExportBulkAction::make()
+                        ->label('Export Terpilih')
+                        ->exports([
+                            ExcelExport::make()
+                                ->fromTable()
+                                ->withFilename('Kartu_Stock_Terpilih_' . date('Y-m-d')),
+                        ]),
+                ]),
             ])
             ->defaultSort('updated_at', 'desc');
     }

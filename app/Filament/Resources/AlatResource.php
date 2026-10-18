@@ -17,6 +17,8 @@ class AlatResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
     protected static ?string $navigationGroup = 'Master Data';
     protected static ?string $navigationLabel = 'Master Alat';
+    protected static ?string $modelLabel = 'Alat';
+    protected static ?string $pluralModelLabel = 'Alat';
 
     public static function form(Form $form): Form
     {

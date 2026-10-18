@@ -6,10 +6,14 @@ use App\Filament\Resources\MutasiAlatResource\Pages;
 use App\Models\Gudang;
 use App\Models\Karyawan;
 use App\Models\MutasiAlat;
+use Awcodes\TableRepeater\Components\TableRepeater;
+use Awcodes\TableRepeater\Header;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 
 class MutasiAlatResource extends Resource
@@ -20,6 +24,8 @@ class MutasiAlatResource extends Resource
     protected static ?string $navigationGroup = 'Monitoring Alat';
     protected static ?string $navigationLabel = 'Perpindahan Alat';
     protected static ?string $slug = 'mutasi-alat';
+    protected static ?string $modelLabel = 'Mutasi Alat';
+    protected static ?string $pluralModelLabel = 'Mutasi Alat';
 
     public static function form(Form $form): Form
     {
@@ -55,14 +61,6 @@ class MutasiAlatResource extends Resource
                                 ->default(now())
                                 ->required(),
                         ]),
-
-                        Forms\Components\Select::make('alat_id')
-                            ->label('Pilih Alat Kerja')
-                            ->relationship('alat', 'nama_alat')
-                            ->getOptionLabelFromRecordUsing(fn ($record) => "[{$record->kode_alat}] {$record->nama_alat}")
-                            ->searchable(['kode_alat', 'nama_alat'])
-                            ->preload()
-                            ->required(),
 
                         Forms\Components\Select::make('jenis_mutasi')
                             ->label('Jenis Mutasi')
@@ -104,40 +102,11 @@ class MutasiAlatResource extends Resource
                                 ->required()
                                 ->live()
                                 ->afterStateUpdated(function (callable $get, callable $set) {
-                                    // Untuk registrasi/rusak/perbaikan, asal_id disamakan
-                                    // dengan tujuan_id di background (satu gudang saja),
-                                    // supaya AlatStokRebuilder (yang baca dari asal_id
-                                    // untuk kasus rusak/perbaikan) tetap dapat nilainya.
                                     if ($get('jenis_mutasi') !== 'transfer') {
                                         $set('asal_id', $get('tujuan_id'));
                                     }
                                 }),
                         ]),
-
-                        Forms\Components\Grid::make(2)->schema([
-                            Forms\Components\TextInput::make('jumlah_baik')
-                                ->label('Jumlah Kondisi Baik')
-                                ->numeric()
-                                ->minValue(0)
-                                ->default(0)
-                                ->required(),
-
-                            Forms\Components\TextInput::make('jumlah_rusak')
-                                ->label('Jumlah Kondisi Rusak')
-                                ->numeric()
-                                ->minValue(0)
-                                ->default(0)
-                                ->required(),
-                        ])->visible(fn (callable $get) => in_array($get('jenis_mutasi'), ['registrasi', 'transfer'])),
-
-                        Forms\Components\TextInput::make('jumlah')
-                            ->label(fn (callable $get) => $get('jenis_mutasi') === 'rusak'
-                                ? 'Jumlah Unit yang Rusak'
-                                : 'Jumlah Unit yang Selesai Diperbaiki')
-                            ->numeric()
-                            ->minValue(1)
-                            ->required()
-                            ->visible(fn (callable $get) => in_array($get('jenis_mutasi'), ['rusak', 'perbaikan'])),
 
                         Forms\Components\Grid::make(3)->schema([
                             Forms\Components\Select::make('kondisi_alat')
@@ -166,6 +135,57 @@ class MutasiAlatResource extends Resource
                             ->label('Catatan Mutasi')
                             ->columnSpanFull(),
                     ]),
+
+                Forms\Components\Section::make('Daftar Alat')
+                    ->schema([
+                        TableRepeater::make('details')
+                            ->relationship('details')
+                            ->headers(fn (callable $get) => match ($get('jenis_mutasi')) {
+                                'rusak', 'perbaikan' => [
+                                    Header::make('alat_id')->label('Nama Alat')->width('60%'),
+                                    Header::make('jumlah')->label('Jumlah Unit')->width('40%'),
+                                ],
+                                default => [
+                                    Header::make('alat_id')->label('Nama Alat')->width('50%'),
+                                    Header::make('jumlah_baik')->label('Kondisi Baik')->width('25%'),
+                                    Header::make('jumlah_rusak')->label('Kondisi Rusak')->width('25%'),
+                                ],
+                            })
+                            ->schema([
+                                Forms\Components\Select::make('alat_id')
+                                    ->relationship('alat', 'nama_alat')
+                                    ->getOptionLabelFromRecordUsing(fn ($record) => "[{$record->kode_alat}] {$record->nama_alat}")
+                                    ->searchable(['kode_alat', 'nama_alat'])
+                                    ->preload()
+                                    ->required(),
+
+                                Forms\Components\TextInput::make('jumlah_baik')
+                                    ->label('Jumlah Kondisi Baik')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->default(0)
+                                    ->required()
+                                    ->visible(fn (callable $get) => in_array($get('../../jenis_mutasi'), ['registrasi', 'transfer'])),
+
+                                Forms\Components\TextInput::make('jumlah_rusak')
+                                    ->label('Jumlah Kondisi Rusak')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->default(0)
+                                    ->required()
+                                    ->visible(fn (callable $get) => in_array($get('../../jenis_mutasi'), ['registrasi', 'transfer'])),
+
+                                Forms\Components\TextInput::make('jumlah')
+                                    ->label('Jumlah Unit')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required()
+                                    ->visible(fn (callable $get) => in_array($get('../../jenis_mutasi'), ['rusak', 'perbaikan'])),
+                            ])
+                            ->defaultItems(1)
+                            ->addActionLabel('＋ Tambah Alat Lain')
+                            ->reorderable(false),
+                    ]),
             ]);
     }
 
@@ -184,10 +204,6 @@ class MutasiAlatResource extends Resource
                     ->label('Tanggal')
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
-
-                Tables\Columns\TextColumn::make('alat.nama_alat')
-                    ->label('Nama Alat')
-                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('jenis_mutasi')
                     ->label('Jenis')
@@ -215,20 +231,11 @@ class MutasiAlatResource extends Resource
                     ->label('Di / Ke Gudang')
                     ->state(fn (MutasiAlat $record) => $record->namaTujuan()),
 
-                Tables\Columns\TextColumn::make('jumlah_baik')
-                    ->label('Baik')
-                    ->placeholder('-')
-                    ->alignCenter(),
-
-                Tables\Columns\TextColumn::make('jumlah_rusak')
-                    ->label('Rusak')
-                    ->placeholder('-')
-                    ->alignCenter(),
-
-                Tables\Columns\TextColumn::make('jumlah')
-                    ->label('Qty')
-                    ->placeholder('-')
-                    ->alignCenter(),
+                Tables\Columns\TextColumn::make('details_count')
+                    ->label('Jumlah Alat')
+                    ->counts('details')
+                    ->badge()
+                    ->color('info'),
 
                 Tables\Columns\TextColumn::make('disetujui_oleh')
                     ->label('Penanggung Jawab')
@@ -237,6 +244,35 @@ class MutasiAlatResource extends Resource
             ])
             ->defaultSort('tanggal_mutasi', 'desc')
             ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->label('View')
+                    ->modalHeading('Rincian Mutasi Alat')
+                    ->infolist([
+                        \Filament\Infolists\Components\RepeatableEntry::make('details')
+                            ->label('Daftar Alat')
+                            ->schema([
+                                \Filament\Infolists\Components\TextEntry::make('alat.nama_alat')
+                                    ->label('Nama Alat'),
+                                \Filament\Infolists\Components\TextEntry::make('jumlah_baik')
+                                    ->label('Baik')
+                                    ->placeholder('-'),
+                                \Filament\Infolists\Components\TextEntry::make('jumlah_rusak')
+                                    ->label('Rusak')
+                                    ->placeholder('-'),
+                                \Filament\Infolists\Components\TextEntry::make('jumlah')
+                                    ->label('Qty')
+                                    ->placeholder('-'),
+                            ])->columns(4),
+                    ]),
+
+                
+                Action::make('preview_pdf')
+    ->label('Cetak PDF')
+    ->icon('heroicon-o-printer')
+    ->color('success')
+    ->url(fn (MutasiAlat $record) => route('mutasi-alat.preview-pdf', $record))
+    ->openUrlInNewTab(),
+
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([

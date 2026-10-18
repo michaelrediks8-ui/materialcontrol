@@ -52,11 +52,7 @@ class StokRebuilder
         });
     }
 
-    /**
-     * Baris transaksi yang satuan_id-nya TIDAK cocok dengan satuan_id ATAUPUN
-     * satuan_besar_id di master barang. Baris ini dihitung sebagai qty apa adanya
-     * (tanpa konversi) di rebuild() di atas — jadi WAJIB dicek satu-satu.
-     */
+    
     public static function satuanTidakDikenali()
     {
         return DB::table('transaksi_barang_details as td')

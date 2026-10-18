@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Barang;
 use App\Models\Gudang;
 use App\Models\Project;
+use App\Models\PurchaseOrder;
 use App\Models\Vendor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -99,12 +100,15 @@ class RiwayatTransaksiBarang extends Page implements HasForms
 
         $rows = $query
             ->select(
+                't.id as transaksi_id', // Menambahkan ID Transaksi untuk relasi Eloquent
                 't.no_transaksi', 't.jenis_transaksi', 't.tanggal_transaksi',
                 't.asal_type', 't.asal_id', 't.tujuan_type', 't.tujuan_id',
                 'td.qty', 'td.satuan_id'
             )
-            ->orderBy('t.tanggal_transaksi')
-            ->orderBy('t.id')
+            // MENGATASI SALDO NGAWUR: Pastikan Masuk/Saldo Awal diproses duluan sebelum Keluar di hari yang sama
+            ->orderBy('t.tanggal_transaksi', 'asc')
+            ->orderByRaw("CASE WHEN t.jenis_transaksi IN ('masuk', 'saldo_awal') THEN 1 ELSE 2 END ASC")
+            ->orderBy('t.id', 'asc')
             ->get();
 
         $saldo = 0;
@@ -146,11 +150,12 @@ class RiwayatTransaksiBarang extends Page implements HasForms
                 }
             }
 
+            // Mengirimkan $row lengkap ke fungsi namaPihak
             $keterangan = $isSemuaGudang
                 ? $this->keteranganSemuaGudang($row)
                 : ($isMasuk
-                    ? 'Dari: ' . $this->namaPihak($row->asal_type, $row->asal_id)
-                    : 'Ke: ' . $this->namaPihak($row->tujuan_type, $row->tujuan_id));
+                    ? 'Dari: ' . $this->namaPihak($row->asal_type, $row->asal_id, $row)
+                    : 'Ke: ' . $this->namaPihak($row->tujuan_type, $row->tujuan_id, $row));
 
             $result[] = [
                 'tanggal' => $row->tanggal_transaksi,
@@ -168,23 +173,55 @@ class RiwayatTransaksiBarang extends Page implements HasForms
 
     protected function keteranganSemuaGudang($row): string
     {
-        $asal = $this->namaPihak($row->asal_type, $row->asal_id);
-        $tujuan = $this->namaPihak($row->tujuan_type, $row->tujuan_id);
+        $asal = $this->namaPihak($row->asal_type, $row->asal_id, $row);
+        $tujuan = $this->namaPihak($row->tujuan_type, $row->tujuan_id, $row);
         return "{$asal} → {$tujuan}";
     }
 
-    protected function namaPihak(?string $type, ?int $id): string
+    // MENGATASI NAMA PROJECT NGAWUR
+    protected function namaPihak(?string $type, ?int $id, $row = null): string
     {
         if (! $type || ! $id) {
             return '-';
         }
 
-        return match ($type) {
-            'vendor' => Vendor::find($id)?->nama_vendor ?? '-',
-            'gudang' => Gudang::find($id)?->nama_gudang ?? '-',
-            'project' => Project::find($id)?->nama_project ?? '-',
-            default => '-',
-        };
+        if ($type === 'vendor') {
+            return Vendor::find($id)?->nama_vendor ?? '-';
+        }
+        
+        if ($type === 'gudang') {
+            return Gudang::find($id)?->nama_gudang ?? '-';
+        }
+
+        if ($type === 'project' || $type === 'purchase_order') {
+            
+            // 1. CARA PALING AKURAT: Panggil Model aslinya agar sama dengan halaman Barang Keluar
+            if ($row && isset($row->transaksi_id)) {
+                $trx = \App\Models\TransaksiBarang::find($row->transaksi_id);
+                if ($trx) {
+                    // Cek jika transaksi punya relasi purchase_order_id
+                    if (!empty($trx->purchase_order_id) && $trx->purchaseOrder?->project) {
+                        return $trx->purchaseOrder->project->nama_project;
+                    }
+                    // Cek jika transaksi punya relasi project_id langsung
+                    if (!empty($trx->project_id) && $trx->project) {
+                        return $trx->project->nama_project;
+                    }
+                }
+            }
+
+            // 2. FALLBACK UNTUK DATA LAMA: 
+            // Jika ternyata tujuan_id malah diisi ID Purchase Order (salah simpan di masa lalu)
+            $po = PurchaseOrder::with('project')->find($id);
+            if ($po && $po->project) {
+                return $po->project->nama_project; 
+            }
+
+            // 3. FALLBACK NORMAL: Ambil dari tabel Project
+            return Project::find($id)?->nama_project ?? '-';
+        }
+
+        return '-';
     }
 
     public function getSatuanKecil(): string

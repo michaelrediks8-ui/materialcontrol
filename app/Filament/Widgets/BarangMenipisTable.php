@@ -35,19 +35,17 @@ class BarangMenipisTable extends BaseWidget
                     ->label('Nama Barang'),
 
                 Tables\Columns\TextColumn::make('stok')
-                    ->label('Stok')
-                    ->formatStateUsing(function ($state, $record) {
-                        $val = (float) $state;
-                        $formatted = number_format($val, 2, ',', '.');
-                        if (str_contains($formatted, ',')) {
-                            $formatted = rtrim($formatted, '0');
-                            $formatted = rtrim($formatted, ',');
-                        }
-                        $satuan = $record->barang?->satuan_kecil ?? 'Pcs';
-                        return "{$formatted} {$satuan}";
-                    })
-                    ->weight('bold')
-                    ->color(fn ($state) => $state <= 0 ? 'danger' : 'warning'),
+                   ->label('Stok')
+                   ->formatStateUsing(function ($state, $record) {
+                    $val = (float) $state;
+                    $formatted = number_format($val, 2, ',', '.');
+                    if (str_contains($formatted, ',')) {
+                      $formatted = rtrim($formatted, '0');
+                      $formatted = rtrim($formatted, ',');}
+                      $satuan = $record->barang?->satuan?->nama_satuan ?? 'Pcs';                            
+                    return "{$formatted} {$satuan}";})    
+                   ->weight('bold')
+                   ->color(fn ($state) => $state <= 0 ? 'danger' : 'warning'),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')

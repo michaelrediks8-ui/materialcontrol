@@ -26,6 +26,8 @@ class BarangKeluarResource extends Resource
     protected static ?string $navigationLabel = 'Barang Keluar';
     protected static ?string $navigationGroup = 'Stok Material';
     protected static ?string $slug = 'barang-keluar';
+    protected static ?string $modelLabel = 'Transaksi Barang';
+    protected static ?string $pluralModelLabel = 'Transaksi Barang';
 
     public static function form(Form $form): Form
     {
@@ -50,11 +52,11 @@ class BarangKeluarResource extends Resource
 
                             /* 💡 SELEKSI DARI TABEL KARYAWAN */
                             Forms\Components\Select::make('request_oleh')
-                                ->label('Diminta Oleh (Mandor/User)')
+                                ->label('Request')
                                 ->options(fn () => Karyawan::query()->pluck('nama', 'nama')->toArray())
                                 ->searchable()
                                 ->preload()
-                                ->placeholder('Pilih Karyawan (Peminta)')
+                                ->placeholder('Pilih Karyawan')
                                 ->required(),
 
                             Forms\Components\Select::make('diterima_oleh')
@@ -62,7 +64,7 @@ class BarangKeluarResource extends Resource
                                 ->options(fn () => Karyawan::query()->pluck('nama', 'nama')->toArray())
                                 ->searchable()
                                 ->preload()
-                                ->placeholder('Pilih Karyawan (Penerima)')
+                                ->placeholder('Pilih Karyawan')
                                 ->required(),
                         ]),
 
@@ -179,7 +181,8 @@ class BarangKeluarResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('jenis_transaksi', 'keluar'))
+ //           ->modifyQueryUsing(fn (Builder $query) => $query->where('jenis_transaksi', 'keluar'))
+ ->modifyQueryUsing(fn (Builder $query) => $query->where('jenis_transaksi', 'keluar')->reorder('no_transaksi', 'desc'))
             ->columns([
                 Tables\Columns\TextColumn::make('no_transaksi')
                     ->label('No. Transaksi')
@@ -190,8 +193,8 @@ class BarangKeluarResource extends Resource
 
                 Tables\Columns\TextColumn::make('tanggal_transaksi')
                     ->label('Tanggal & Jam')
-                    ->dateTime('d M Y, H:i')
-                    ->sortable(),
+                    ->dateTime('d M Y, H:i'),
+     //               ->sortable(),
 
                 Tables\Columns\TextColumn::make('request_oleh')
                     ->label('Peminta')
@@ -218,12 +221,16 @@ class BarangKeluarResource extends Resource
             ->filters([
                 Tables\Filters\Filter::make('tanggal_transaksi')
                     ->form([
-                        Forms\Components\DatePicker::make('dari_tanggal')
-                            ->label('Dari Tanggal')
-                            ->default(now()),
-                        Forms\Components\DatePicker::make('sampai_tanggal')
-                            ->label('Sampai Tanggal')
-                            ->default(now()),
+                        // Dibungkus Grid 2 kolom supaya dua tanggal berdampingan
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\DatePicker::make('dari_tanggal')
+                                ->label('Dari Tanggal')
+                                ->default(now()),
+
+                            Forms\Components\DatePicker::make('sampai_tanggal')
+                                ->label('Sampai Tanggal')
+                                ->default(now()),
+                        ]),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
@@ -237,6 +244,8 @@ class BarangKeluarResource extends Resource
                             );
                     }),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(2)
             ->actions([
                 Tables\Actions\ViewAction::make()
                     ->label('View')
@@ -297,6 +306,11 @@ class BarangKeluarResource extends Resource
                     ]),
 
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make()
+    ->iconButton()   // ikon saja, supaya tidak memakan lebar di HP
+    ->modalHeading('Hapus Transaksi')
+    ->modalDescription('Transaksi beserta rinciannya akan dihapus dan stok dihitung ulang. Lanjutkan?')
+    ->successNotificationTitle('Transaksi berhasil dihapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -6,6 +6,7 @@ use App\Exports\LaporanPemakaianProjectExport;
 use App\Models\Project;
 use App\Models\PurchaseOrder;
 use App\Models\TransaksiBarangDetail;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -35,6 +36,20 @@ class LaporanPemakaianProject extends Page implements HasForms
             'dari_tanggal' => null,
             'sampai_tanggal' => null,
         ]);
+    }
+
+    /**
+     * Memindahkan tombol Export ke Header Action Native Filament (Pojok Kanan Atas)
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('export')
+                ->label('Ekspor Excel (.xlsx)')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('success')
+                ->action('export'),
+        ];
     }
 
     public function form(Form $form): Form
@@ -157,12 +172,10 @@ class LaporanPemakaianProject extends Page implements HasForms
                     'nama_barang' => $barang->nama_barang ?? '-',
                     'total_qty' => 0,
                     'satuan' => $barang->satuan->nama_satuan ?? '-',
-                    // 💡 Tambahan Tanggal & Requester
                     'tanggal_terakhir' => $transaksi->tanggal_transaksi,
                     'request_oleh' => $transaksi->request_oleh ?? '-',
                 ];
             } else {
-                // 💡 Update jika ada transaksi yang lebih baru
                 if ($transaksi->tanggal_transaksi > $grouped[$key]['tanggal_terakhir']) {
                     $grouped[$key]['tanggal_terakhir'] = $transaksi->tanggal_transaksi;
                     $grouped[$key]['request_oleh'] = $transaksi->request_oleh ?? '-';
@@ -177,6 +190,25 @@ class LaporanPemakaianProject extends Page implements HasForms
         usort($result, fn ($a, $b) => strcmp($a['project'], $b['project']) ?: strcmp($a['nama_barang'], $b['nama_barang']));
 
         return $result;
+    }
+
+    /**
+     * Helper Method untuk mengelompokkan baris berdasarkan nama Project
+     */
+    public function getGroupedRows(): array
+    {
+        $rows = $this->getRows();
+        $grouped = [];
+
+        foreach ($rows as $row) {
+            $projectName = $row['project'];
+            if (! isset($grouped[$projectName])) {
+                $grouped[$projectName] = [];
+            }
+            $grouped[$projectName][] = $row;
+        }
+
+        return $grouped;
     }
 
     public function getSummary(): array

@@ -6,7 +6,6 @@ use App\Filament\Resources\BarangMasukResource\Pages;
 use App\Models\Gudang;
 use App\Models\Karyawan;
 use App\Models\PurchaseOrder;
-use App\Models\Satuan;
 use App\Models\TransaksiBarang;
 use App\Models\Vendor;
 use Filament\Forms;
@@ -14,7 +13,9 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Tables\Filters\Indicator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Awcodes\TableRepeater\Components\TableRepeater;
 use Awcodes\TableRepeater\Header;
 
@@ -26,6 +27,8 @@ class BarangMasukResource extends Resource
     protected static ?string $navigationLabel = 'Barang Masuk';
     protected static ?string $navigationGroup = 'Stok Material';
     protected static ?string $slug = 'barang-masuk';
+    protected static ?string $modelLabel = 'Transaksi Barang';
+    protected static ?string $pluralModelLabel = 'Transaksi Barang';
 
     public static function form(Form $form): Form
     {
@@ -36,7 +39,8 @@ class BarangMasukResource extends Resource
                         Forms\Components\Hidden::make('jenis_transaksi')->default('masuk'),
                         Forms\Components\Hidden::make('asal_type')->default('vendor'),
 
-                        Forms\Components\Grid::make(3)->schema([
+                        // Baris 1: Tanggal, No Surat Jalan, Vendor Asal
+                        Forms\Components\Grid::make(['default' => 1, 'md' => 2, 'xl' => 3])->schema([
                             Forms\Components\DateTimePicker::make('tanggal_transaksi')
                                 ->label('Tanggal & Jam Terima')
                                 ->displayFormat('d/m/Y H:i:s')
@@ -58,7 +62,8 @@ class BarangMasukResource extends Resource
                                 ->required(),
                         ]),
 
-                        Forms\Components\Grid::make(2)->schema([
+                        // Baris 2: Ekspedisi & No Resi
+                        Forms\Components\Grid::make(['default' => 1, 'md' => 2])->schema([
                             Forms\Components\TextInput::make('jasa_pengirim')
                                 ->label('Ekspedisi / Jasa Pengirim')
                                 ->placeholder('Contoh: Gopans, J&T, Kurir PT'),
@@ -68,7 +73,8 @@ class BarangMasukResource extends Resource
                                 ->placeholder('Kosongkan jika tidak ada resi'),
                         ]),
 
-                        Forms\Components\Grid::make(2)->schema([
+                        // Baris 3: Pemohon & Penerima Fisik
+                        Forms\Components\Grid::make(['default' => 1, 'md' => 2])->schema([
                             Forms\Components\Select::make('request_oleh')
                                 ->label('Diminta Oleh')
                                 ->options(fn () => Karyawan::query()->pluck('nama', 'nama')->toArray())
@@ -86,109 +92,75 @@ class BarangMasukResource extends Resource
                                 ->required(),
                         ]),
 
-                        Forms\Components\Grid::make(2)->schema([
-                            Forms\Components\Select::make('purchase_order_id') // atau 'project_id' tergantung nama field header-mu
-    ->label('Untuk Project / PO Mana?')
-    ->options(function (): array {
-        return PurchaseOrder::with('project')
-            ->get()
-            ->mapWithKeys(function (PurchaseOrder $po) {
-                $namaProject = $po->project->nama_project ?? 'Tanpa Nama Project';
-                return [$po->id => "{$po->no_po} - {$namaProject}"];
-            })
-            ->toArray();
-    })
-    ->searchable()
-    ->preload()
-    ->live()
-    ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
-        if ($state) {
-            $po = PurchaseOrder::with('project')->find($state);
-            
-            if ($po && $po->project) {
-                // 1. Autofill data header lainnya jika ada
-                $set('area', $po->project->area);
-                $set('job_description', $po->project->nama_project);
-
-                // 2. 💡 OTOMATIS MENGISI PROJECT_ID DI TIAP BARIS ITEM REPEATER
-                $details = $get('details') ?? [];
-                foreach ($details as $key => $item) {
-                    $set("details.{$key}.project_id", $po->project->id);
-                }
-            }
-        }
-    })
-    ->nullable(),
-
-                            Forms\Components\TextInput::make('area')
-                                ->label('Area / Site Location')
-                                ->placeholder('Autofill dari Project Induk')
-                                ->dehydrated(false)
-                                ->nullable(),
-                        ]),
-
-                        Forms\Components\Textarea::make('job_description')
-                            ->label('Job Description / Uraian Pekerjaan')
-                            ->placeholder('Autofill dari Project Induk')
-                            ->rows(2)
-                            ->columnSpanFull()
-                            ->nullable(),
-
-                        Forms\Components\Grid::make(2)->schema([
+                        // Baris 4: Tujuan Penerimaan & Gudang Penerima
+                        Forms\Components\Grid::make(['default' => 1, 'md' => 2])->schema([
                             Forms\Components\Select::make('tujuan_type')
-                                ->label('Tujuan Penurunan Barang (Fisik)')
+                                ->label('Tujuan Penerimaan')
                                 ->options([
-                                    'gudang' => '🏢 Masuk Gudang (Transit/Stok)',
-                                    'project' => '🚚 Langsung Drop ke Site/Project',
+                                    'gudang' => '🏢 Masuk ke Gudang',
+                                    'project' => '🚚 Langsung Drop ke Project',
                                 ])
                                 ->default('gudang')
                                 ->required()
                                 ->live()
-                                ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                ->afterStateUpdated(function (callable $set) {
                                     $set('tujuan_id', null);
-                                    if ($state === 'project' && $get('purchase_order_id')) {
-                                        $set('tujuan_id', $get('purchase_order_id'));
-                                    }
                                 }),
 
                             Forms\Components\Select::make('tujuan_id')
-                                ->label(fn (callable $get) => $get('tujuan_type') === 'gudang' ? 'Pilih Gudang Penerima' : 'Pilih Site / Project Tujuan')
-                                ->options(function (callable $get): array {
-                                    $type = $get('tujuan_type') ?? 'gudang';
-                                    if ($type === 'gudang') {
-                                        return Gudang::query()
-                                            ->whereNotNull('nama_gudang')
-                                            ->pluck('nama_gudang', 'id')
-                                            ->map(fn ($val) => (string) $val)
-                                            ->toArray();
-                                    }
-                                    
-                                    return PurchaseOrder::with('project')
-                                        ->get()
-                                        ->mapWithKeys(function (PurchaseOrder $po) {
-                                            $namaProject = $po->project->nama_project ?? 'Tanpa Nama Project';
-                                            return [$po->id => "{$po->no_po} - {$namaProject}"];
-                                        })
-                                        ->toArray();
-                                })
+                                ->label('Pilih Gudang Penerima')
+                                ->options(fn () => Gudang::query()->whereNotNull('nama_gudang')->pluck('nama_gudang', 'id')->map(fn ($val) => (string) $val)->toArray())
                                 ->searchable()
                                 ->preload()
-                                ->required(),
+                                ->required(fn (callable $get) => $get('tujuan_type') === 'gudang')
+                                ->visible(fn (callable $get) => $get('tujuan_type') === 'gudang'),
                         ]),
+
+                        // Baris 5: PO / Project Utama (tersimpan di header, autofill tabel rincian)
+                        Forms\Components\Select::make('purchase_order_id')
+                            ->label('Untuk Project / PO Mana? (Opsional - Autofill Tabel)')
+                            ->helperText('Jika diisi, seluruh item di tabel rincian di bawah akan otomatis terisi project dari PO ini.')
+                            ->options(fn () => PurchaseOrder::with('project')
+                                ->get()
+                                ->mapWithKeys(fn (PurchaseOrder $po) => [
+                                    $po->id => "{$po->no_po} - " . ($po->project->nama_project ?? 'Tanpa Nama Project'),
+                                ])
+                                ->toArray())
+                            ->searchable()
+                            ->preload()
+                            ->nullable()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if (! $state) {
+                                    return;
+                                }
+
+                                $po = PurchaseOrder::find($state);
+                                if (! $po?->project_id) {
+                                    return;
+                                }
+
+                                foreach (array_keys($get('details') ?? []) as $key) {
+                                    $set("details.{$key}.project_id", $po->project_id);
+                                }
+                            }),
                     ]),
 
                 Forms\Components\Section::make('Rincian Barang yang Diterima')
+                    ->description('Tentukan rincian barang dan alokasi project-nya pada daftar di bawah.')
                     ->schema([
                         TableRepeater::make('details')
+                            ->hiddenLabel()
                             ->relationship('details')
                             ->headers([
                                 Header::make('barang_id')->label('Nama Barang')->width('35%'),
                                 Header::make('qty')->label('Qty')->width('15%'),
                                 Header::make('satuan_id')->label('Satuan')->width('20%'),
-                                Header::make('project_id')->label('Alokasi Project (Per Item)')->width('30%'),
+                                Header::make('project_id')->label('Alokasi Project')->width('30%'),
                             ])
                             ->schema([
                                 Forms\Components\Select::make('barang_id')
+                                    ->label('Nama Barang')
                                     ->relationship('barang', 'nama_barang')
                                     ->getOptionLabelFromRecordUsing(fn ($record) => "[{$record->kode_barang}] {$record->nama_barang}")
                                     ->searchable(['kode_barang', 'nama_barang'])
@@ -199,14 +171,15 @@ class BarangMasukResource extends Resource
 
                                 Forms\Components\TextInput::make('qty')
                                     ->label('Qty')
-    ->numeric()
-    ->step('any')               // 💡 WAJIB 'any' atau '0.01' agar bisa input 0.5
-    ->minValue(0.01)            // 💡 Minimal angka 0.01
-    ->default(null)             // 💡 Tetap dikosongkan saat tambah baru (solusi agar tidak auto 1)
-    ->placeholder('0')
-    ->required(),
+                                    ->numeric()
+                                    ->step('any')
+                                    ->minValue(0.01)
+                                    ->default(null)
+                                    ->placeholder('0')
+                                    ->required(),
 
                                 Forms\Components\Select::make('satuan_id')
+                                    ->label('Satuan')
                                     ->options(function (callable $get) {
                                         $barang = \App\Models\Barang::find($get('barang_id'));
                                         if (! $barang) {
@@ -224,23 +197,20 @@ class BarangMasukResource extends Resource
                                         return $options;
                                     })
                                     ->required(),
-                                
-                               Forms\Components\Select::make('project_id')
-    ->label('Alokasi Project')
-    ->relationship('project', 'nama_project')
-    ->searchable()
-    ->preload()
-    ->nullable()
-    ->placeholder('Ikut project induk')
-    // 💡 Mengambil nilai project header jika baris baru ditambahkan
-    ->default(function (Forms\Get $get) {
-        $poId = $get('../../purchase_order_id');
-        if ($poId) {
-            $po = PurchaseOrder::find($poId);
-            return $po->project_id ?? null;
-        }
-        return null;
-    }),
+
+                                Forms\Components\Select::make('project_id')
+                                    ->label('Alokasi Project')
+                                    ->relationship('project', 'nama_project')
+                                    ->searchable()
+                                    ->preload()
+                                    ->nullable()
+                                    ->default(function (Forms\Get $get) {
+                                        $poId = $get('../../purchase_order_id');
+
+                                        return $poId ? PurchaseOrder::find($poId)?->project_id : null;
+                                    })
+                                    ->required(fn (callable $get) => $get('../../tujuan_type') === 'project')
+                                    ->placeholder('Pilih Project (Opsional)'),
                             ])
                             ->defaultItems(1)
                             ->addActionLabel('＋ Tambah Item Masuk')
@@ -266,42 +236,52 @@ class BarangMasukResource extends Resource
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
 
+                // Tersembunyi di HP, tampil mulai tablet
                 Tables\Columns\TextColumn::make('no_surat_jalan')
                     ->label('No. Bon / SJ Supplier')
                     ->placeholder('-')
-                    ->searchable(),
+                    ->searchable()
+                    ->visibleFrom('md'),
 
+                // Tersembunyi di HP, tampil mulai tablet
                 Tables\Columns\TextColumn::make('asal')
                     ->label('Dari Supplier')
                     ->state(fn (TransaksiBarang $record): string => $record->namaAsal() ?? '-')
-                    ->limit(25),
+                    ->limit(25)
+                    ->visibleFrom('md'),
 
                 Tables\Columns\TextColumn::make('tujuan')
-                    ->label('Lokasi Penurunan')
-                    ->state(fn (TransaksiBarang $record): string => $record->namaTujuan())
-                    ->description(function (TransaksiBarang $record): string {
-                        if ($record->tujuan_type === 'gudang') {
-                            $project = $record->namaProjectTerkait();
-                            return $project !== '-' ? "📦 Transit Gudang | 📌 {$project}" : '📦 Transit Gudang';
+                    ->label('Tujuan Utama')
+                    ->state(function (TransaksiBarang $record): string {
+                        if ($record->tujuan_type === 'project') {
+                            return '🚚 Langsung Drop ke Project';
                         }
-                        return '🚚 Langsung Drop ke Project';
-                    }),
+                        return $record->namaTujuan();
+                    })
+                    ->description(fn (TransaksiBarang $record): ?string => $record->purchaseOrder
+                        ? '📌 PO: ' . $record->purchaseOrder->no_po
+                        : null)
+                    ->badge()
+                    ->color(fn ($record) => $record->tujuan_type === 'project' ? 'success' : 'info'),
 
                 Tables\Columns\TextColumn::make('details_count')
                     ->label('Total Item')
                     ->counts('details')
                     ->badge()
-                    ->color('info'),
+                    ->color('gray'),
             ])
             ->filters([
                 Tables\Filters\Filter::make('tanggal_transaksi')
                     ->form([
-                        Forms\Components\DatePicker::make('dari_tanggal')
-                            ->label('Dari Tanggal')
-                            ->default(now()),
-                        Forms\Components\DatePicker::make('sampai_tanggal')
-                            ->label('Sampai Tanggal')
-                            ->default(now()),
+                        Forms\Components\Grid::make(['default' => 1, 'sm' => 2])->schema([
+                            Forms\Components\DatePicker::make('dari_tanggal')
+                                ->label('Dari Tanggal')
+                                ->default(now()),
+
+                            Forms\Components\DatePicker::make('sampai_tanggal')
+                                ->label('Sampai Tanggal')
+                                ->default(now()),
+                        ]),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
@@ -313,8 +293,23 @@ class BarangMasukResource extends Resource
                                 $data['sampai_tanggal'],
                                 fn (Builder $q, $date): Builder => $q->whereDate('tanggal_transaksi', '<=', $date),
                             );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if ($data['dari_tanggal'] ?? null) {
+                            $indicators[] = Indicator::make('Dari: ' . Carbon::parse($data['dari_tanggal'])->format('d/m/Y'))
+                                ->removeField('dari_tanggal');
+                        }
+                        if ($data['sampai_tanggal'] ?? null) {
+                            $indicators[] = Indicator::make('Sampai: ' . Carbon::parse($data['sampai_tanggal'])->format('d/m/Y'))
+                                ->removeField('sampai_tanggal');
+                        }
+                        return $indicators;
                     }),
             ])
+            // Filter tanggal di atas tabel, responsif: 1 kolom di HP, 2 kolom di tablet ke atas
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(['default' => 1, 'md' => 2])
             ->actions([
                 Tables\Actions\ViewAction::make()
                     ->label('View')
@@ -332,25 +327,29 @@ class BarangMasukResource extends Resource
                                     ->dateTime('d M Y, H:i'),
 
                                 \Filament\Infolists\Components\TextEntry::make('request_oleh')
-                                    ->label('Diminta Oleh / Peminta')
-                                    ->placeholder('-')
-                                    ->weight('bold'),
+                                    ->label('Diminta Oleh')
+                                    ->placeholder('-'),
 
                                 \Filament\Infolists\Components\TextEntry::make('asal_view')
-                                    ->label('Asal Dari (Supplier / Vendor)')
+                                    ->label('Supplier / Vendor')
                                     ->state(fn ($record) => $record->namaAsal())
                                     ->weight('bold'),
 
                                 \Filament\Infolists\Components\TextEntry::make('diterima_oleh')
-                                    ->label('Diterima Oleh (Penerima Fisik)')
+                                    ->label('Diterima Oleh (Fisik)')
                                     ->placeholder('-'),
 
                                 \Filament\Infolists\Components\TextEntry::make('tujuan_view')
-                                    ->label('Lokasi Penurunan Fisik')
-                                    ->state(fn ($record) => $record->namaTujuan())
+                                    ->label('Tujuan Penerimaan')
+                                    ->state(function ($record) {
+                                        if ($record->tujuan_type === 'project') {
+                                            return '🚚 Langsung Drop ke Project';
+                                        }
+                                        return 'Gudang: ' . $record->namaTujuan();
+                                    })
                                     ->badge()
-                                    ->color('info'),
-                            ])->columns(3),
+                                    ->color(fn ($record) => $record->tujuan_type === 'project' ? 'success' : 'info'),
+                            ])->columns(['default' => 1, 'md' => 3]),
 
                         \Filament\Infolists\Components\Section::make('Daftar Rincian Barang & Alokasi Project')
                             ->schema([
@@ -358,16 +357,15 @@ class BarangMasukResource extends Resource
                                     ->label('')
                                     ->schema([
                                         \Filament\Infolists\Components\TextEntry::make('barang.nama_barang')
-                                            ->label('Nama Barang & Spesifikasi')
+                                            ->label('Nama Barang')
                                             ->weight('bold'),
 
                                         \Filament\Infolists\Components\TextEntry::make('qty')
-    ->label('Jumlah')
-    ->formatStateUsing(function ($state) {
-        // 💡 Memformat angka: 0.5 tampil "0,5" | 5.00 tampil "5"
-        $formatted = number_format((float) $state, 2, ',', '.');
-        return rtrim(rtrim($formatted, '0'), ',');
-    }),
+                                            ->label('Jumlah')
+                                            ->formatStateUsing(function ($state) {
+                                                $formatted = number_format((float) $state, 2, ',', '.');
+                                                return rtrim(rtrim($formatted, '0'), ',');
+                                            }),
 
                                         \Filament\Infolists\Components\TextEntry::make('satuan.nama_satuan')
                                             ->label('Satuan')
@@ -379,39 +377,39 @@ class BarangMasukResource extends Resource
                                             }),
 
                                         \Filament\Infolists\Components\TextEntry::make('alokasi_project')
-                                            ->label('Project')
+                                            ->label('Alokasi Project')
                                             ->state(function ($record) {
-                                                if ($record->project) {
-                                                    return $record->project->nama_project;
+                                                if (! $record->project) {
+                                                    return '📦 Masuk Stok Gudang';
                                                 }
 
-                                                $parent = $record->transaksiBarang ?? $record->transaksi;
-                                                if ($parent) {
-                                                    $namaHeader = $parent->namaProjectTerkait();
-                                                    if ($namaHeader !== '-') {
-                                                        return "{$namaHeader} (Header)";
-                                                    }
-                                                }
+                                                $namaProject = $record->project->nama_project;
+                                                $parent = TransaksiBarang::find($record->transaksi_barang_id);
 
-                                                return '📦 Stok Transit Gudang';
+                                                // Prioritas: PO yang dipilih saat input.
+                                                // Cadangan (data lama): PO milik project item ini.
+                                                $noPo = $parent?->purchaseOrder?->no_po
+                                                    ?: PurchaseOrder::where('project_id', $record->project_id)
+                                                        ->pluck('no_po')->filter()->implode(', ');
+
+                                                return $noPo
+                                                    ? "🚚 Drop ke Project: {$noPo} - {$namaProject}"
+                                                    : "🚚 Drop ke Project: {$namaProject}";
                                             })
                                             ->badge()
-                                            ->color(function ($state) {
-                                                if (str_contains($state, 'Stok Transit')) {
-                                                    return 'gray';
-                                                }
-                                                if (str_contains($state, '(Header)')) {
-                                                    return 'info';
-                                                }
-                                                return 'success';
-                                            }),
-                                    ])
-                                    ->columns(4)
+                                            ->color(fn ($state) => str_contains($state, 'Drop') ? 'success' : 'gray'),
+                                    ])->columns(['default' => 2, 'md' => 4])
                                     ->columnSpanFull(),
                             ]),
                     ]),
 
                 Tables\Actions\EditAction::make(),
+
+                Tables\Actions\DeleteAction::make()
+                    ->iconButton()
+                    ->modalHeading('Hapus Transaksi')
+                    ->modalDescription('Transaksi beserta rinciannya akan dihapus dan stok dihitung ulang. Lanjutkan?')
+                    ->successNotificationTitle('Transaksi berhasil dihapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -419,6 +417,12 @@ class BarangMasukResource extends Resource
                 ]),
             ])
             ->defaultSort('tanggal_transaksi', 'desc');
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->orderBy('no_transaksi', 'desc');
     }
 
     public static function getPages(): array

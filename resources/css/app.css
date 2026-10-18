@@ -3,7 +3,87 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/* Tambahkan baris ini agar Tailwind membaca file Blade laporan Anda */
+@source '../views/**/*.blade.php';
+@source '../../app/Filament/**/*.php';
+@source '../../app/Livewire/**/*.php';
+
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+/* Rapatkan area konten */
+.fi-page > section {
+    padding-top: 0.75rem !important;
+    padding-bottom: 1rem !important;
+    row-gap: 1rem !important;
+}
+
+.fi-header-heading {
+    font-size: 1.5rem !important;
+}
+
+.fi-ta-filters {
+    padding: 0.75rem 1rem !important;
+}
+/* =========================================
+   10. RESPONSIVE (HP & TABLET)
+========================================== */
+
+/* Tabel laporan boleh digeser ke samping */
+.laporan-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Tablet ke bawah: sidebar jadi laci, harus solid, tidak transparan */
+@media (max-width: 1023px) {
+    .fi-sidebar {
+        background-color: var(--mc-surface) !important;
+        backdrop-filter: none !important;
+    }
+    .fi-header-heading {
+        font-size: 1.35rem !important;
+    }
+}
+
+/* HP */
+@media (max-width: 640px) {
+    .mc-brand-text {
+        font-size: 1rem;
+    }
+    .fi-simple-main {
+        padding: 1.5rem !important;
+        border-radius: 1.25rem !important;
+    }
+    .fi-wi-stats-overview-stat {
+        padding: 1rem !important;
+    }
+    .fi-wi-stats-overview-stat-value,
+    .stat-value {
+        font-size: 1.5rem !important;
+    }
+    .laporan-card {
+        padding: 1rem !important;
+    }
+    .stat-box {
+        padding: 1rem !important;
+    }
+    .laporan-table th,
+    .laporan-table td {
+        padding: 0.75rem 0.85rem !important;
+    }
+    .fi-ta-header-cell {
+        padding-top: 0.75rem !important;
+        padding-bottom: 0.75rem !important;
+    }
+}
+
+/* Layar sentuh: matikan efek hover yang menggeser kartu */
+@media (hover: none) {
+    .fi-wi:hover,
+    .fi-wi-stats-overview-stat:hover,
+    .fi-simple-main button[type="submit"]:hover,
+    .fi-sidebar-item:hover .fi-sidebar-item-icon {
+        transform: none !important;
+    }
 }

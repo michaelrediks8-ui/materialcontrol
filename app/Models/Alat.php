@@ -48,52 +48,53 @@ class Alat extends Model
         return $this->hasMany(PeminjamanAlat::class);
     }
 
-    /** Total baik milik SEMUA gudang, termasuk yang sedang dipinjam */
+    /** Total baik di semua gudang (termasuk yang sedang dipinjam) */
     public function totalBaik(): int
     {
         return (int) $this->stokAlats()->sum('jumlah_baik');
     }
 
-    /** Total rusak di SEMUA gudang */
     public function totalRusak(): int
     {
         return (int) $this->stokAlats()->sum('jumlah_rusak');
     }
 
-    /** Total keseluruhan milik semua gudang (baik + rusak) */
     public function totalKeseluruhan(): int
     {
         return $this->totalBaik() + $this->totalRusak();
     }
 
-    /** Sedang dipinjam (belum dikembalikan), opsional difilter per gudang asal pinjam */
+    /**
+     * Unit yang masih di luar = dipinjam dikurangi yang sudah kembali.
+     * Opsional difilter per gudang asal pinjam.
+     */
     public function sedangDipinjam(?int $gudangId = null): int
     {
-        $query = $this->peminjaman()->whereNull('tanggal_aktual_kembali');
+        $query = $this->peminjaman()
+            ->whereNull('tanggal_aktual_kembali')
+            ->withSum('pengembalians as total_kembali', 'qty_kembali');
 
         if ($gudangId) {
             $query->where('gudang_id', $gudangId);
         }
 
-        return (int) $query->sum('qty');
+        return (int) $query->get()->sum(fn ($p) => max(0, $p->qty - ($p->total_kembali ?? 0)));
     }
 
     /**
-     * Baik yang bisa dipinjam sekarang dari gudang ini
-     * = jumlah baik milik gudang dikurangi yang sedang dipinjam.
-     * Dipakai juga sebagai batas maksimal qty saat meminjam.
+     * Bisa dipinjam dari gudang ini = kondisi baik di gudang
+     * dikurangi yang sedang dipinjam dari gudang ini.
      */
     public function tersediaDiGudang(int $gudangId): int
     {
         $baik = (int) ($this->stokAlats()->where('gudang_id', $gudangId)->value('jumlah_baik') ?? 0);
 
-        return max(0, $baik - $this->sedangDipinjam($gudangId));
+        return $baik - $this->sedangDipinjam($gudangId);
     }
 
-    /** Total baik yang bisa dipinjam di semua gudang gabungan */
     public function sisaTersedia(): int
     {
-        return max(0, $this->totalBaik() - $this->sedangDipinjam());
+        return $this->totalBaik() - $this->sedangDipinjam();
     }
 
     public function peminjamanTelat(): HasMany

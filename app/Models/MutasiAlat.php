@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MutasiAlat extends Model
 {
@@ -19,18 +19,15 @@ class MutasiAlat extends Model
         static::deleted(fn () => \App\Support\AlatStokRebuilder::rebuild());
     }
 
-    public function alat(): BelongsTo
+    public function details(): HasMany
     {
-        return $this->belongsTo(Alat::class, 'alat_id');
+        return $this->hasMany(MutasiAlatDetail::class, 'mutasi_alat_id');
     }
 
     public function namaAsal(): string
     {
         if ($this->asal_type === 'gudang') {
             return Gudang::find($this->asal_id)?->nama_gudang ?? '-';
-        }
-        if ($this->asal_type === 'project') {
-            return Project::find($this->asal_id)?->nama_project ?? '-';
         }
         return '-';
     }
@@ -39,9 +36,6 @@ class MutasiAlat extends Model
     {
         if ($this->tujuan_type === 'gudang') {
             return Gudang::find($this->tujuan_id)?->nama_gudang ?? '-';
-        }
-        if ($this->tujuan_type === 'project') {
-            return Project::find($this->tujuan_id)?->nama_project ?? '-';
         }
         return '-';
     }

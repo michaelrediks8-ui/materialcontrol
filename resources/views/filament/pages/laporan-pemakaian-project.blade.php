@@ -1,118 +1,141 @@
 <x-filament-panels::page>
-    
-    {{-- Form Filter di atas --}}
-    <x-filament-panels::form wire:submit="submit">
-        {{ $this->form }}
-    </x-filament-panels::form>
+    <div class="flex flex-col gap-y-6">
 
-    {{-- Kartu Ringkasan (Summary) --}}
-    @php
-        $summary = $this->getSummary();
-        $groupedRows = collect($this->getRows())->groupBy('project');
-    @endphp
-    
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <x-filament::section>
-            <div class="flex items-center gap-4">
-                <div class="p-3 bg-primary-500/10 text-primary-600 rounded-xl">
-                    <x-heroicon-o-briefcase class="w-6 h-6" />
-                </div>
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Total Project Terlibat</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $summary['total_project'] }}</p>
-                </div>
-            </div>
-        </x-filament::section>
-
-        <x-filament::section>
-            <div class="flex items-center gap-4">
-                <div class="p-3 bg-success-500/10 text-success-600 rounded-xl">
-                    <x-heroicon-o-cube class="w-6 h-6" />
-                </div>
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Macam / Jenis Material</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $summary['total_barang'] }}</p>
-                </div>
-            </div>
-        </x-filament::section>
-        
-        <x-filament::section>
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Aksi Ekspor</p>
-                    <p class="text-sm text-gray-900 dark:text-gray-300 mt-1">Unduh laporan ke Excel</p>
-                </div>
-                <x-filament::button wire:click="export" color="success" icon="heroicon-o-arrow-down-tray">
-                    Export .xlsx
-                </x-filament::button>
-            </div>
-        </x-filament::section>
-    </div>
-
-    {{-- Looping Tabel per Project --}}
-    @forelse($groupedRows as $projectName => $items)
-        <x-filament::section class="mb-2" collapsible>
-            {{-- Header Project --}}
+        <!-- 1. FILTER SECTION -->
+        <x-filament::section icon="heroicon-o-funnel">
             <x-slot name="heading">
-                <div class="flex items-center gap-2 text-primary-600 dark:text-primary-400">
-                    <x-heroicon-o-building-office-2 class="w-6 h-6" />
-                    <span class="text-lg font-bold">{{ $projectName }}</span>
-                    <x-filament::badge color="info" size="sm" class="ml-2">
-                        {{ count($items) }} Material
-                    </x-filament::badge>
-                </div>
+                Filter Data Laporan
             </x-slot>
-
-            {{-- Tabel Material di dalam Project --}}
-            <div class="overflow-x-auto -mx-6 -mb-6">
-                <table class="w-full text-left divide-y table-auto fi-ta-table divide-gray-200 dark:divide-white/5">
-                    <thead class="bg-gray-50 dark:bg-white/5">
-                        <tr>
-                            <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white w-32">KODE</th>
-                            <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white">NAMA MATERIAL</th>
-                            {{-- 💡 Kolom Baru --}}
-                            <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white">PENGAMBILAN TERAKHIR</th>
-                            <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white text-right">TOTAL DIPAKAI</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-white/5">
-                        @foreach($items as $row)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition duration-75">
-                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">
-                                    <x-filament::badge color="gray">{{ $row['kode_barang'] }}</x-filament::badge>
-                                </td>
-                                <td class="px-6 py-3 text-sm font-medium text-gray-900 dark:text-gray-200">
-                                    {{ $row['nama_barang'] }}
-                                </td>
-                                {{-- 💡 Data Kolom Baru (Tanggal + Requester) --}}
-                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">
-                                    <div class="flex flex-col">
-                                        <span class="font-medium text-gray-900 dark:text-gray-100">
-                                            {{ \Carbon\Carbon::parse($row['tanggal_terakhir'])->format('d M Y') }}
-                                        </span>
-                                        <span class="text-xs text-gray-500 dark:text-gray-400">
-                                            Req: {{ $row['request_oleh'] !== '-' ? $row['request_oleh'] : 'Tidak diketahui' }}
-                                        </span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-3 text-sm font-bold text-gray-900 dark:text-white text-right">
-                                    {{ $this->formatQty($row['total_qty']) }} 
-                                    <span class="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">{{ $row['satuan'] }}</span>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+            {{ $this->form }}
         </x-filament::section>
-    @empty
-        <x-filament::section>
-            <div class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                <x-heroicon-o-document-magnifying-glass class="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                <p class="font-medium text-lg">Tidak ada data pemakaian</p>
-                <p class="text-sm">Silakan sesuaikan filter tanggal atau project di atas.</p>
-            </div>
-        </x-filament::section>
-    @endforelse
 
+        <!-- 2. STATS SUMMARY -->
+        @php
+            $summary = $this->getSummary();
+        @endphp
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <x-filament::section>
+                <div class="flex items-center gap-x-4">
+                    <div class="p-3 rounded-lg bg-primary-500/10">
+                        <x-heroicon-o-briefcase class="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Project</p>
+                        <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ $summary['total_project'] }}</p>
+                    </div>
+                </div>
+            </x-filament::section>
+
+            <x-filament::section>
+                <div class="flex items-center gap-x-4">
+                    <div class="p-3 rounded-lg bg-warning-500/10">
+                        <x-heroicon-o-cube class="w-6 h-6 text-warning-600 dark:text-warning-400" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Varian Material</p>
+                        <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ $summary['total_barang'] }}</p>
+                    </div>
+                </div>
+            </x-filament::section>
+
+            <x-filament::section>
+                <div class="flex items-center gap-x-4">
+                    <div class="p-3 rounded-lg bg-success-500/10">
+                        <x-heroicon-o-document-text class="w-6 h-6 text-success-600 dark:text-success-400" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Baris Data</p>
+                        <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ $summary['total_item'] }}</p>
+                    </div>
+                </div>
+            </x-filament::section>
+        </div>
+
+        <!-- 3. DATA TABEL PER PROJECT -->
+        @php
+            $groupedRows = $this->getGroupedRows();
+        @endphp
+
+        <div class="flex flex-col gap-y-6">
+            @forelse($groupedRows as $projectName => $items)
+                <x-filament::section>
+                    <!-- Header Section Project -->
+                    <x-slot name="heading">
+                        <div class="flex items-center gap-x-2">
+                            <x-heroicon-m-folder-open class="w-5 h-5 text-gray-400" />
+                            <span class="text-base">{{ $projectName }}</span>
+                        </div>
+                    </x-slot>
+                    
+                    <x-slot name="headerEnd">
+                        <x-filament::badge color="info">
+                            {{ count($items) }} Material Dipakai
+                        </x-filament::badge>
+                    </x-slot>
+
+                    <!-- Tabel Flush (Menempel rapi dengan ujung section khas Filament) -->
+                    <div class="-mx-6 -mb-6 border-t border-gray-200 dark:border-white/10 overflow-x-auto">
+                        <table class="w-full text-left divide-y divide-gray-200 dark:divide-white/5">
+                            <thead class="bg-gray-50 dark:bg-white/5">
+                                <tr>
+                                    <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white whitespace-nowrap">Kode Material</th>
+                                    <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white whitespace-nowrap">Nama Material</th>
+                                    <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white whitespace-nowrap">Pengambilan Terakhir</th>
+                                    <th class="px-6 py-3 text-sm font-semibold text-gray-950 dark:text-white whitespace-nowrap text-right">Total Dipakai</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-white/5 whitespace-nowrap">
+                                @foreach($items as $item)
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition duration-75">
+                                        
+                                        <!-- Kolom Kode -->
+                                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
+                                            {{ $item['kode_barang'] }}
+                                        </td>
+                                        
+                                        <!-- Kolom Nama -->
+                                        <td class="px-6 py-4 text-sm font-medium text-gray-950 dark:text-white">
+                                            {{ $item['nama_barang'] }}
+                                        </td>
+                                        
+                                        <!-- Kolom Tanggal & Request -->
+                                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                            <div class="flex flex-col gap-y-1">
+                                                <span class="font-medium text-gray-950 dark:text-white">
+                                                    {{ $item['tanggal_terakhir'] ? \Carbon\Carbon::parse($item['tanggal_terakhir'])->translatedFormat('d M Y') : '-' }}
+                                                </span>
+                                                <span class="flex items-center gap-x-1 text-xs">
+                                                    <x-heroicon-m-user class="w-3.5 h-3.5" />
+                                                    Req: {{ $item['request_oleh'] }}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        
+                                        <!-- Kolom Total (Badge) -->
+                                        <td class="px-6 py-4 text-sm text-right">
+                                            <x-filament::badge color="success" size="sm">
+                                                {{ $this->formatQty($item['total_qty']) }} {{ $item['satuan'] }}
+                                            </x-filament::badge>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </x-filament::section>
+            @empty
+                <!-- Tampilan Jika Kosong -->
+                <x-filament::section>
+                    <div class="flex flex-col items-center justify-center p-6 mx-auto text-center">
+                        <div class="p-4 mb-4 bg-gray-100 rounded-full dark:bg-gray-800">
+                            <x-heroicon-o-magnifying-glass class="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-950 dark:text-white">Belum ada pemakaian</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Coba ubah rentang waktu atau project di filter atas.</p>
+                    </div>
+                </x-filament::section>
+            @endforelse
+        </div>
+
+    </div>
 </x-filament-panels::page>

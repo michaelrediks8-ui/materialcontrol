@@ -9,10 +9,9 @@ use Laravel\Scout\Searchable;
 
 class Barang extends Model
 {
-    
+    use Searchable;
 
     protected $guarded = [];
-    use Searchable;
 
     public function toSearchableArray(): array
     {

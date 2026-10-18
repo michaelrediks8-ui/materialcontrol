@@ -5,7 +5,6 @@ namespace App\Observers;
 use App\Models\TransaksiBarangDetail;
 use App\Support\StokRebuilder;
 
-
 class TransaksiBarangDetailObserver
 {
     public function created(TransaksiBarangDetail $detail): void
