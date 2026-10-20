@@ -30,6 +30,11 @@ class ReportBulananEksur extends Page implements HasForms
 
     public ?array $data = [];
 
+    /** Preview baru dimuat setelah tombol "Tampilkan Data" ditekan. */
+    public bool $sudahTampil = false;
+
+    private const BATAS_PREVIEW = 300;
+
     public function mount(): void
     {
         // Default filter: Tanggal 15 bulan lalu s/d hari ini
@@ -37,9 +42,31 @@ class ReportBulananEksur extends Page implements HasForms
 
         $this->form->fill([
             'vendor_id' => $vendorEkaSurya ? $vendorEkaSurya->id : '__all__',
-            'dari_tanggal' => now()->subMonth()->day(15)->format('Y-m-d'),
+            // Default per hari: hari ini saja, supaya ringan.
+            'dari_tanggal' => now()->format('Y-m-d'),
             'sampai_tanggal' => now()->format('Y-m-d'),
         ]);
+    }
+
+    public function tampilkan(): void
+    {
+        $this->sudahTampil = true;
+    }
+
+    /** Filter berubah -> preview disembunyikan, harus ditampilkan ulang. */
+    public function updatedData(): void
+    {
+        $this->sudahTampil = false;
+    }
+
+    public function getPreviewRows(): array
+    {
+        $rows = $this->getRows();
+
+        return [
+            'total' => count($rows),
+            'rows' => array_slice($rows, 0, self::BATAS_PREVIEW),
+        ];
     }
 
     public function form(Form $form): Form
@@ -59,10 +86,12 @@ class ReportBulananEksur extends Page implements HasForms
 
                 DatePicker::make('dari_tanggal')
                     ->label('Dari Tanggal')
+                    ->default(now())
                     ->live(),
 
                 DatePicker::make('sampai_tanggal')
                     ->label('Sampai Tanggal')
+                    ->default(now())
                     ->live(),
             ])
             ->statePath('data')
@@ -130,6 +159,10 @@ class ReportBulananEksur extends Page implements HasForms
 
     public function export()
     {
+        if (! $this->sudahTampil) {
+            return null;
+        }
+
         $rows = $this->getRows();
         $dariTanggal = !empty($this->data['dari_tanggal']) ? date('d/m/Y', strtotime($this->data['dari_tanggal'])) : '';
         $sampaiTanggal = !empty($this->data['sampai_tanggal']) ? date('d/m/Y', strtotime($this->data['sampai_tanggal'])) : '';
