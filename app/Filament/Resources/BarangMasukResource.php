@@ -98,7 +98,7 @@ class BarangMasukResource extends Resource
                                 ->label('Tujuan Penerimaan')
                                 ->options([
                                     'gudang' => '🏢 Masuk ke Gudang',
-                                    'project' => '🚚 Langsung Drop ke Project',
+                                    'project' => '🚚 Langsung ke Project (Tanpa Singgah Gudang)',
                                 ])
                                 ->default('gudang')
                                 ->required()
@@ -254,7 +254,7 @@ class BarangMasukResource extends Resource
                     ->label('Tujuan Utama')
                     ->state(function (TransaksiBarang $record): string {
                         if ($record->tujuan_type === 'project') {
-                            return '🚚 Langsung Drop ke Project';
+                            return '🚚 Langsung ke Project (Tanpa Gudang)';
                         }
                         return $record->namaTujuan();
                     })
@@ -343,9 +343,9 @@ class BarangMasukResource extends Resource
                                     ->label('Tujuan Penerimaan')
                                     ->state(function ($record) {
                                         if ($record->tujuan_type === 'project') {
-                                            return '🚚 Langsung Drop ke Project';
+                                            return '🚚 Langsung ke Project (Tanpa Singgah Gudang)';
                                         }
-                                        return 'Gudang: ' . $record->namaTujuan();
+                                        return '🏢 Gudang: ' . $record->namaTujuan();
                                     })
                                     ->badge()
                                     ->color(fn ($record) => $record->tujuan_type === 'project' ? 'success' : 'info'),
@@ -379,12 +379,13 @@ class BarangMasukResource extends Resource
                                         \Filament\Infolists\Components\TextEntry::make('alokasi_project')
                                             ->label('Alokasi Project')
                                             ->state(function ($record) {
+                                                $parent = TransaksiBarang::find($record->transaksi_barang_id);
+
                                                 if (! $record->project) {
-                                                    return '📦 Masuk Stok Gudang';
+                                                    return '📦 Stok Umum Gudang';
                                                 }
 
                                                 $namaProject = $record->project->nama_project;
-                                                $parent = TransaksiBarang::find($record->transaksi_barang_id);
 
                                                 // Prioritas: PO yang dipilih saat input.
                                                 // Cadangan (data lama): PO milik project item ini.
@@ -392,12 +393,24 @@ class BarangMasukResource extends Resource
                                                     ?: PurchaseOrder::where('project_id', $record->project_id)
                                                         ->pluck('no_po')->filter()->implode(', ');
 
-                                                return $noPo
-                                                    ? "🚚 Drop ke Project: {$noPo} - {$namaProject}"
-                                                    : "🚚 Drop ke Project: {$namaProject}";
+                                                $teks = $noPo ? "{$noPo} - {$namaProject}" : $namaProject;
+
+                                                // Barang singgah di gudang -> hanya dialokasikan.
+                                                // Barang tidak singgah gudang -> dikirim langsung.
+                                                return $parent?->tujuan_type === 'project'
+                                                    ? "🚚 Langsung ke Project: {$teks}"
+                                                    : "🏷️ Untuk Project: {$teks}";
                                             })
                                             ->badge()
-                                            ->color(fn ($state) => str_contains($state, 'Drop') ? 'success' : 'gray'),
+                                            ->color(function ($record) {
+                                                if (! $record->project) {
+                                                    return 'gray';
+                                                }
+
+                                                return TransaksiBarang::find($record->transaksi_barang_id)?->tujuan_type === 'project'
+                                                    ? 'success'
+                                                    : 'info';
+                                            }),
                                     ])->columns(['default' => 2, 'md' => 4])
                                     ->columnSpanFull(),
                             ]),

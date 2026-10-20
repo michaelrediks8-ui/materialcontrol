@@ -14,7 +14,10 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 class MutasiAlatResource extends Resource
 {
@@ -243,6 +246,56 @@ class MutasiAlatResource extends Resource
                     ->searchable(),
             ])
             ->defaultSort('tanggal_mutasi', 'desc')
+            ->filters([
+                // Default: hari ini. Kosongkan kedua tanggal untuk menampilkan semua data.
+                Tables\Filters\Filter::make('tanggal_mutasi')
+                    ->label('Tanggal')
+                    ->form([
+                        Forms\Components\DatePicker::make('dari')
+                            ->label('Dari Tanggal')
+                            ->default(now()->toDateString())
+                            ->native(false)
+                            ->displayFormat('d M Y'),
+                        Forms\Components\DatePicker::make('sampai')
+                            ->label('Sampai Tanggal')
+                            ->default(now()->toDateString())
+                            ->native(false)
+                            ->displayFormat('d M Y'),
+                    ])
+                    ->columns(2)
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['dari'] ?? null,
+                                fn (Builder $q, $date) => $q->whereDate('tanggal_mutasi', '>=', $date)
+                            )
+                            ->when(
+                                $data['sampai'] ?? null,
+                                fn (Builder $q, $date) => $q->whereDate('tanggal_mutasi', '<=', $date)
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+
+                        $dari = $data['dari'] ?? null;
+                        $sampai = $data['sampai'] ?? null;
+
+                        if ($dari && $sampai && $dari === $sampai) {
+                            $indicators[] = 'Tanggal: ' . Carbon::parse($dari)->translatedFormat('d M Y');
+                            return $indicators;
+                        }
+
+                        if ($dari) {
+                            $indicators[] = 'Dari: ' . Carbon::parse($dari)->translatedFormat('d M Y');
+                        }
+                        if ($sampai) {
+                            $indicators[] = 'Sampai: ' . Carbon::parse($sampai)->translatedFormat('d M Y');
+                        }
+
+                        return $indicators;
+                    }),
+            ], layout: FiltersLayout::AboveContent)
+            ->filtersFormColumns(2)
             ->actions([
                 Tables\Actions\ViewAction::make()
                     ->label('View')
@@ -265,13 +318,12 @@ class MutasiAlatResource extends Resource
                             ])->columns(4),
                     ]),
 
-                
                 Action::make('preview_pdf')
-    ->label('Cetak PDF')
-    ->icon('heroicon-o-printer')
-    ->color('success')
-    ->url(fn (MutasiAlat $record) => route('mutasi-alat.preview-pdf', $record))
-    ->openUrlInNewTab(),
+                    ->label('Cetak PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('success')
+                    ->url(fn (MutasiAlat $record) => route('mutasi-alat.preview-pdf', $record))
+                    ->openUrlInNewTab(),
 
                 Tables\Actions\EditAction::make(),
             ])
