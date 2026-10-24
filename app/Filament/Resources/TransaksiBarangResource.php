@@ -56,10 +56,12 @@ class TransaksiBarangResource extends Resource
 
                 Tables\Columns\TextColumn::make('tanggal_transaksi')
                     ->label('Tanggal & Jam')
-                    ->dateTime('d M Y, H:i'),
+                    ->dateTime('d M Y, H:i')
+                    ->grow(false),
 
                 Tables\Columns\TextColumn::make('jenis_transaksi')
                     ->label('Alur')
+                    ->grow(false)
                     ->badge()
                     ->state(function (TransaksiBarang $record): string {
                         return match (strtolower($record->jenis_transaksi ?? '')) {
@@ -92,34 +94,22 @@ class TransaksiBarangResource extends Resource
                         $jenis = strtolower($record->jenis_transaksi ?? '');
                         $project = $record->namaProjectTerkait();
 
-                        if ($jenis === 'masuk') {
-                            if ($record->tujuan_type === 'gudang') {
-                                $desc = '📦 Transit Gudang';
-                                if ($project !== '-') {
-                                    $desc .= " | 📌 Project: {$project}";
-                                }
-                                return $desc;
-                            }
-
-                            return '🚚 Langsung Drop ke Project';
+                        // Barang tidak singgah gudang
+                        if ($jenis === 'masuk' && $record->tujuan_type !== 'gudang') {
+                            return '🚚 Langsung ke Project' . ($project !== '-' ? ": {$project}" : '');
                         }
 
-                        if ($jenis === 'transfer') {
-                            $desc = '🔄 Transfer Gudang';
-                            if ($project !== '-') {
-                                $desc .= " | 📌 Project: {$project}";
-                            }
-                            return $desc;
-                        }
-
-                        return null;
+                        // Cukup nama project; jenis alur sudah ada di kolom Alur
+                        return $project !== '-' ? "📌 {$project}" : null;
                     })
                     ->limit(45)
                     ->tooltip(fn (TransaksiBarang $record): string => $record->namaTujuan())
                     ->sortable(false),
 
                 Tables\Columns\TextColumn::make('details_count')
-                    ->label('Total Item')
+                    ->label('Item')
+                    ->grow(false)
+                    ->alignCenter()
                     ->counts('details')
                     ->badge()
                     ->color('info'),
@@ -204,8 +194,8 @@ class TransaksiBarangResource extends Resource
 
                                         if ($jenis === 'masuk') {
                                             return $record->tujuan_type === 'gudang'
-                                                ? '📦 Masuk Gudang (Transit/Stok)'
-                                                : '🚚 Langsung Drop ke Project';
+                                                ? '🏢 Masuk Gudang'
+                                                : '🚚 Langsung ke Project (Tanpa Singgah Gudang)';
                                         }
 
                                         if ($jenis === 'transfer') {
@@ -216,7 +206,7 @@ class TransaksiBarangResource extends Resource
                                     })
                                     ->badge()
                                     ->color(fn ($state) => match (true) {
-                                        str_contains($state, 'Drop') => 'warning',
+                                        str_contains($state, 'Langsung') => 'warning',
                                         str_contains($state, 'Transfer') => 'info',
                                         default => 'success',
                                     })

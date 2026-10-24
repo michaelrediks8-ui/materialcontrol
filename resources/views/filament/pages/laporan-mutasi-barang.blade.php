@@ -7,22 +7,31 @@
             </form>
 
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex justify-end">
-                <x-filament::button
-                    wire:click="export"
-                    icon="heroicon-m-arrow-down-tray"
-                    color="gray"
-                    labeled-from="sm"
-                >
-                    Export Excel
-                </x-filament::button>
+                @if ($this->sudahTampil)
+                    <x-filament::button
+                        wire:click="export"
+                        wire:loading.attr="disabled"
+                        wire:target="export"
+                        icon="heroicon-m-arrow-down-tray"
+                        color="gray"
+                        labeled-from="sm"
+                    >
+                        Export Excel
+                    </x-filament::button>
+                @else
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Atur filter, lalu klik <strong>Tampilkan Data</strong> (pojok kanan atas). Tombol Export muncul setelah data tampil.</span>
+                @endif
             </div>
         </div>
 
         @php
             $summary = $this->getSummary();
             $rows = $this->getRows();
+            $totalBaris = $this->totalBaris();
+            $ringkasan = $this->getRingkasan();
         @endphp
 
+        @if ($this->sudahTampil)
         {{-- 2. SUMMARY CARDS --}}
         {{-- Ubah gap-4 menjadi gap-6 untuk jarak antar kartu yang lebih lega --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6"> 
@@ -62,6 +71,11 @@
         </div>
 
         {{-- 3. TABEL DATA --}}
+        @if ($totalBaris > count($rows))
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ number_format($totalBaris, 0, ',', '.') }} baris ditemukan, preview menampilkan {{ count($rows) }} baris pertama. File Excel berisi semuanya.
+            </p>
+        @endif
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-sm overflow-hidden">
             @if(count($rows) > 0)
                 <div class="overflow-x-auto">
@@ -71,10 +85,12 @@
                                 <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Tanggal & Jam</th>
                                 <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">No. Transaksi</th>
                                 <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Jenis</th>
+                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Gudang</th>
                                 <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Barang</th>
-                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Asal</th>
-                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Tujuan</th>
-                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Qty</th>
+                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Keterangan</th>
+                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Masuk</th>
+                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Keluar</th>
+                                <th scope="col" class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Saldo</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
@@ -102,10 +118,16 @@
                                             @case('transfer')
                                                 <span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/20">Transfer</span>
                                                 @break
+                                            @case('awal')
+                                                <span class="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-400 dark:ring-amber-400/20">Saldo Awal</span>
+                                                @break
                                             @default
                                                 <span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">{{ $row['jenis_transaksi'] }}</span>
                                         @endswitch
                                     </td>
+
+                                    {{-- Gudang --}}
+                                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $row['gudang'] }}</td>
 
                                     {{-- Kode & Nama Barang --}}
                                     <td class="px-4 py-3">
@@ -117,24 +139,27 @@
                                         </div>
                                     </td>
 
-                                    {{-- Asal --}}
-                                    <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
-                                        {{ $row['asal'] ?: '-' }}
-                                    </td>
-
-                                    {{-- Tujuan + Penanda Drop/Transit --}}
-                                    <td class="px-4 py-3">
-                                        <div class="text-gray-900 dark:text-gray-200">{{ $row['tujuan'] ?: '-' }}</div>
-                                        @if(($row['jenis_transaksi'] === 'masuk') && in_array($row['tujuan_type'] ?? '', ['project', 'purchase_order']))
-                                            <span class="inline-flex mt-1 items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-white/10">Drop ke Project</span>
-                                        @elseif(($row['jenis_transaksi'] === 'masuk') && ($row['tujuan_type'] ?? '') === 'gudang')
-                                            <span class="inline-flex mt-1 items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-white/10">Transit Gudang</span>
+                                    {{-- Keterangan: Dari / Ke + project --}}
+                                    <td class="px-4 py-3 text-gray-900 dark:text-gray-200">
+                                        {{ $row['keterangan'] }}
+                                        @if ($row['tanpa_gudang'])
+                                            <span class="ml-1 inline-flex items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-white/10">Tidak lewat gudang</span>
                                         @endif
                                     </td>
 
-                                    {{-- Qty (Warna Diseragamkan) --}}
+                                    <td class="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">
+                                        {{ $row['masuk'] ? $this->formatQty($row['masuk']) : '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-rose-600 dark:text-rose-400">
+                                        {{ $row['keluar'] ? $this->formatQty($row['keluar']) : '-' }}
+                                    </td>
                                     <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
-                                        {{ $this->formatQty($row['qty']) }}
+                                        @if ($row['saldo'] !== null)
+                                            {{ $this->formatQty($row['saldo']) }}
+                                            <span class="text-xs font-normal text-gray-500 dark:text-gray-400">{{ $row['satuan'] }}</span>
+                                        @else
+                                            <span class="text-gray-400">-</span>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -148,5 +173,47 @@
                 </div>
             @endif
         </div>
+
+        {{-- 4. RINGKASAN STOK PER BARANG --}}
+        @if (count($ringkasan) > 0)
+            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-white/10">
+                    <div class="font-semibold text-gray-900 dark:text-white">Ringkasan Stok per Barang</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Saldo per gudang dan barang, dihitung dari seluruh lalu lintas sebelum dan selama periode. Transfer mengurangi gudang asal dan menambah gudang tujuan.</div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-white/10">
+                            <tr>
+                                <th class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Gudang</th>
+                                <th class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Barang</th>
+                                <th class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Satuan</th>
+                                <th class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Saldo Awal</th>
+                                <th class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Total Masuk</th>
+                                <th class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Total Keluar</th>
+                                <th class="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Sisa Stok</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-white/5">
+                            @foreach ($ringkasan as $g)
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $g['gudang'] }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-mono font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300 mr-2">{{ $g['kode_barang'] }}</span>
+                                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ $g['nama_barang'] }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $g['satuan'] }}</td>
+                                    <td class="px-4 py-3 text-right text-gray-900 dark:text-gray-200">{{ $this->formatQty($g['saldo_awal']) }}</td>
+                                    <td class="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">{{ $this->formatQty($g['masuk']) }}</td>
+                                    <td class="px-4 py-3 text-right text-rose-600 dark:text-rose-400">{{ $this->formatQty($g['keluar']) }}</td>
+                                    <td class="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">{{ $this->formatQty($g['sisa']) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+        @endif
     </div>
 </x-filament-panels::page>

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\BarangKeluarResource\Pages;
+use App\Filament\Support\BarangSelect;
 use App\Models\Gudang;
 use App\Models\Karyawan; 
 use App\Models\Project;
@@ -134,14 +135,13 @@ class BarangKeluarResource extends Resource
                                 Header::make('satuan_id')->label('Satuan')->width('30%'),
                             ])
                             ->schema([
-                                Forms\Components\Select::make('barang_id')
-                                    ->relationship('barang', 'nama_barang')
-                                    ->getOptionLabelFromRecordUsing(fn ($record) => "[{$record->kode_barang}] {$record->nama_barang}")
-                                    ->searchable(['kode_barang', 'nama_barang'])
-                                    ->preload()
+                                BarangSelect::make('barang_id')
                                     ->required()
                                     ->live()
-                                    ->afterStateUpdated(fn (callable $set) => $set('satuan_id', null)),
+                                    ->afterStateUpdated(function ($state, callable $set) {
+                                        // Satuan otomatis terisi satuan dasar barang
+                                        $set('satuan_id', $state ? \App\Models\Barang::whereKey($state)->value('satuan_id') : null);
+                                    }),
 
                                 Forms\Components\TextInput::make('qty')
                                     ->label('Jumlah')
@@ -153,22 +153,7 @@ class BarangKeluarResource extends Resource
                                     ->required(),
 
                                 Forms\Components\Select::make('satuan_id')
-                                    ->options(function (callable $get) {
-                                        $barang = \App\Models\Barang::find($get('barang_id'));
-                                        if (! $barang) {
-                                            return [];
-                                        }
-
-                                        $options = [];
-                                        if ($barang->satuan_id) {
-                                            $options[$barang->satuan_id] = $barang->satuan->nama_satuan ?? '-';
-                                        }
-                                        if ($barang->satuan_besar_id) {
-                                            $options[$barang->satuan_besar_id] = $barang->satuanBesar->nama_satuan ?? '-';
-                                        }
-
-                                        return $options;
-                                    })
+                                    ->options(fn (callable $get) => BarangSelect::opsiSatuan($get('barang_id')))
                                     ->required(),
                             ])
                             ->defaultItems(1)
@@ -236,11 +221,11 @@ class BarangKeluarResource extends Resource
                         return $query
                             ->when(
                                 $data['dari_tanggal'],
-                                fn (Builder $q, $date): Builder => $q->whereDate('tanggal_transaksi', '>=', $date),
+                                fn (Builder $q, $date): Builder => $q->where('tanggal_transaksi', '>=', Carbon::parse($date)->startOfDay()),
                             )
                             ->when(
                                 $data['sampai_tanggal'],
-                                fn (Builder $q, $date): Builder => $q->whereDate('tanggal_transaksi', '<=', $date),
+                                fn (Builder $q, $date): Builder => $q->where('tanggal_transaksi', '<=', Carbon::parse($date)->endOfDay()),
                             );
                     }),
             ])

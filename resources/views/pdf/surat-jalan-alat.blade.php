@@ -14,7 +14,7 @@
         .kop-table {
             width: 100%;
             border-collapse: collapse;
-            border-bottom: 3px double #000;
+            border-bottom: 3px solid #000;
             padding-bottom: 8px;
             margin-bottom: 15px;
         }
@@ -100,17 +100,29 @@
         .ttd-table td {
             text-align: center;
             vertical-align: top;
-            width: 25%;
+            width: 33.33%;
             font-size: 10px;
         }
         .space-ttd {
             height: 50px;
         }
+        /* Nama penandatangan: tinggi tetap supaya ketiganya sejajar (tanpa garis) */
+        .garis-ttd {
+            width: 75%;
+            height: 16px;
+            margin: 0 auto;
+            font-weight: bold;
+            text-align: center;
+        }
+        .jabatan-ttd {
+            margin-top: 3px;
+            font-size: 10px;
+        }
     </style>
 </head>
 <body>
 
-   @php
+@php
     // Membaca langsung logo dari public/images/logo-stp.png
     $logoPath = public_path('images/logo-stp.png');
     $logoBase64 = null;
@@ -119,6 +131,22 @@
         $type = pathinfo($logoPath, PATHINFO_EXTENSION);
         $data = file_get_contents($logoPath);
         $logoBase64 = 'data:image/' . $type . ';base64,' . base64_encode($data);
+    }
+
+    // Helper untuk mengambil jabatan berdasarkan nama
+    if (! function_exists('getJabatanKaryawan')) {
+    function getJabatanKaryawan($nama, $defaultRole = '') {
+        if (empty($nama)) {
+            return !empty($defaultRole) ? "({$defaultRole})" : '';
+        }
+        
+        $jabatan = \App\Models\Karyawan::jabatanDari($nama);
+        if (!empty($jabatan)) {
+            return "({$jabatan})";
+        }
+        
+        return !empty($defaultRole) ? "({$defaultRole})" : '';
+    }
     }
 @endphp
 
@@ -178,8 +206,7 @@
             <td>: {{ $mutasi->catatan ?? '-' }}</td>
         </tr>
         <tr>
-            <td><strong>Kondisi Fisik</strong></td>
-            <td colspan="3">: {{ $mutasi->kondisi_alat ?? 'Bagus' }}</td>
+            
         </tr>
     </table>
 
@@ -202,7 +229,6 @@
                     $rusak = (int) ($detail->jumlah_rusak ?? 0);
                     $total = $detail->jumlah > 0 ? (int) $detail->jumlah : ($baik + $rusak);
                     
-                    // Cek Satuan
                     $satuan = 'Unit';
                     if (!empty($detail->alat?->satuan)) {
                         $satuan = is_object($detail->alat->satuan) ? ($detail->alat->satuan->nama_satuan ?? 'Unit') : $detail->alat->satuan;
@@ -224,27 +250,26 @@
         </tbody>
     </table>
 
-    <!-- KOLOM TANDA TANGAN 4 PIHAK -->
+    <!-- KOLOM TANDA TANGAN -->
     <table class="ttd-table">
         <tr>
             <td>
-                Yang Menyerahkan,<br>
-                <strong>(Gudang Asal)</strong>
+                Yang Menyerahkan,
                 <div class="space-ttd"></div>
-                ( .................................... )
-            </td>
-            
-            <td>
-                Yang Menerima,<br>
-                <strong>(Gudang Tujuan)</strong>
-                <div class="space-ttd"></div>
-                ( .................................... )
+                <div class="garis-ttd">{{ $mutasi->diserahkan_oleh }}</div>
+                <div class="jabatan-ttd">{{ getJabatanKaryawan($mutasi->diserahkan_oleh, 'Gudang Asal') }}</div>
             </td>
             <td>
-                Mengetahui,<br>
-                <strong>(Supervisor Material Control)</strong>
+                Yang Menerima,
                 <div class="space-ttd"></div>
-                ( <strong>{{ $mutasi->disetujui_oleh ?? '....................................' }}</strong> )
+                <div class="garis-ttd">{{ $mutasi->diterima_oleh }}</div>
+                <div class="jabatan-ttd">{{ getJabatanKaryawan($mutasi->diterima_oleh, 'Gudang Tujuan') }}</div>
+            </td>
+            <td>
+                Mengetahui,
+                <div class="space-ttd"></div>
+                <div class="garis-ttd">{{ $mutasi->disetujui_oleh }}</div>
+                <div class="jabatan-ttd">{{ getJabatanKaryawan($mutasi->disetujui_oleh, 'Supervisor Material Control') }}</div>
             </td>
         </tr>
     </table>

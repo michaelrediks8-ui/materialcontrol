@@ -111,7 +111,7 @@ class MutasiAlatResource extends Resource
                                 }),
                         ]),
 
-                        Forms\Components\Grid::make(3)->schema([
+                        Forms\Components\Grid::make(2)->schema([
                             Forms\Components\Select::make('kondisi_alat')
                                 ->label('Kondisi Fisik Alat')
                                 ->options([
@@ -122,16 +122,33 @@ class MutasiAlatResource extends Resource
                                 ->default('Bagus')
                                 ->required(),
 
+                            Forms\Components\TextInput::make('pengangkut_driver')
+                                ->label('Driver / Ekspedisi')
+                                ->placeholder('Nama Driver / No. Plat'),
+                        ]),
+
+                        // Bagian Pilihan Karyawan untuk Tanda Tangan
+                        Forms\Components\Grid::make(3)->schema([
                             Forms\Components\Select::make('disetujui_oleh')
-                                ->label('Penanggung Jawab / PM')
+                                ->label('Penanggung Jawab / PM (Mengetahui)')
                                 ->options(fn () => Karyawan::query()->pluck('nama', 'nama')->toArray())
                                 ->searchable()
                                 ->preload()
                                 ->nullable(),
 
-                            Forms\Components\TextInput::make('pengangkut_driver')
-                                ->label('Driver / Ekspedisi')
-                                ->placeholder('Nama Driver / No. Plat'),
+                            Forms\Components\Select::make('diserahkan_oleh')
+                                ->label('Yang Menyerahkan')
+                                ->options(fn () => Karyawan::query()->pluck('nama', 'nama')->toArray())
+                                ->searchable()
+                                ->preload()
+                                ->nullable(),
+
+                            Forms\Components\Select::make('diterima_oleh')
+                                ->label('Yang Menerima')
+                                ->options(fn () => Karyawan::query()->pluck('nama', 'nama')->toArray())
+                                ->searchable()
+                                ->preload()
+                                ->nullable(),
                         ]),
 
                         Forms\Components\Textarea::make('catatan')
@@ -247,7 +264,6 @@ class MutasiAlatResource extends Resource
             ])
             ->defaultSort('tanggal_mutasi', 'desc')
             ->filters([
-                // Default: hari ini. Kosongkan kedua tanggal untuk menampilkan semua data.
                 Tables\Filters\Filter::make('tanggal_mutasi')
                     ->label('Tanggal')
                     ->form([

@@ -16,6 +16,7 @@ use Filament\Tables\Table;
 use Filament\Tables\Filters\Indicator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Awcodes\TableRepeater\Components\TableRepeater;
 use Awcodes\TableRepeater\Header;
 
@@ -164,10 +165,17 @@ class BarangMasukResource extends Resource
                                     ->relationship('barang', 'nama_barang')
                                     ->getOptionLabelFromRecordUsing(fn ($record) => "[{$record->kode_barang}] {$record->nama_barang}")
                                     ->searchable(['kode_barang', 'nama_barang'])
-                                    ->preload()
+                                    // Tanpa preload: daftar barang TIDAK dimuat ke halaman, hanya dicari saat mengetik.
+                                    ->searchDebounce(300)
+                                    ->optionsLimit(30)
+                                    ->noSearchResultsMessage('Barang tidak ditemukan')
+                                    ->searchPrompt('Ketik kode atau nama barang…')
                                     ->required()
                                     ->live()
-                                    ->afterStateUpdated(fn (callable $set) => $set('satuan_id', null)),
+                                    ->afterStateUpdated(function ($state, callable $set) {
+                                        // Satuan otomatis terisi satuan dasar barang
+                                        $set('satuan_id', $state ? \App\Models\Barang::whereKey($state)->value('satuan_id') : null);
+                                    }),
 
                                 Forms\Components\TextInput::make('qty')
                                     ->label('Qty')
@@ -181,7 +189,7 @@ class BarangMasukResource extends Resource
                                 Forms\Components\Select::make('satuan_id')
                                     ->label('Satuan')
                                     ->options(function (callable $get) {
-                                        $barang = \App\Models\Barang::find($get('barang_id'));
+                                        $barang = \App\Models\Barang::with(['satuan', 'satuanBesar'])->find($get('barang_id'));
                                         if (! $barang) {
                                             return [];
                                         }
@@ -222,53 +230,87 @@ class BarangMasukResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('jenis_transaksi', 'masuk'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['purchaseOrder.project', 'details.project'])->where('jenis_transaksi', 'masuk'))
             ->columns([
+                // No. transaksi + tanggal dalam satu sel
                 Tables\Columns\TextColumn::make('no_transaksi')
-                    ->label('No. Transaksi')
+                    ->label('Transaksi')
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
-                    ->copyable(),
-
-                Tables\Columns\TextColumn::make('tanggal_transaksi')
-                    ->label('Tanggal & Jam')
-                    ->dateTime('d M Y, H:i')
-                    ->sortable(),
-
-                // Tersembunyi di HP, tampil mulai tablet
-                Tables\Columns\TextColumn::make('no_surat_jalan')
-                    ->label('No. Bon / SJ Supplier')
-                    ->placeholder('-')
-                    ->searchable()
-                    ->visibleFrom('md'),
-
-                // Tersembunyi di HP, tampil mulai tablet
-                Tables\Columns\TextColumn::make('asal')
-                    ->label('Dari Supplier')
-                    ->state(fn (TransaksiBarang $record): string => $record->namaAsal() ?? '-')
-                    ->limit(25)
-                    ->visibleFrom('md'),
-
-                Tables\Columns\TextColumn::make('tujuan')
-                    ->label('Tujuan Utama')
-                    ->state(function (TransaksiBarang $record): string {
-                        if ($record->tujuan_type === 'project') {
-                            return '🚚 Langsung ke Project (Tanpa Gudang)';
-                        }
-                        return $record->namaTujuan();
-                    })
-                    ->description(fn (TransaksiBarang $record): ?string => $record->purchaseOrder
-                        ? '📌 PO: ' . $record->purchaseOrder->no_po
+                    ->copyable()
+                    ->description(fn (TransaksiBarang $record): ?string => $record->tanggal_transaksi
+                        ? Carbon::parse($record->tanggal_transaksi)->format('d M Y, H:i')
                         : null)
+                    ->extraAttributes(['class' => 'whitespace-nowrap']),
+
+                // Dipakai untuk mengurutkan berdasarkan tanggal (disembunyikan; aktifkan lewat ikon kolom)
+                Tables\Columns\TextColumn::make('tanggal_transaksi')
+                    ->label('Tanggal')
+                    ->dateTime('d M Y, H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                // Supplier + No. Bon/SJ dalam satu sel (pencarian meliputi nama vendor & no. bon)
+                Tables\Columns\TextColumn::make('asal')
+                    ->label('Supplier / No. Bon')
+                    ->state(fn (TransaksiBarang $record): string => $record->namaAsal() ?? '-')
+                    ->description(fn (TransaksiBarang $record): ?string => filled($record->no_surat_jalan)
+                        ? '📄 ' . $record->no_surat_jalan
+                        : null)
+                    ->limit(30)
+                    ->tooltip(fn (TransaksiBarang $record): ?string => $record->namaAsal())
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->where(function (Builder $q) use ($search) {
+                            $q->where('no_surat_jalan', 'like', "%{$search}%")
+                                ->orWhereIn('asal_id', Vendor::query()
+                                    ->where('nama_vendor', 'like', "%{$search}%")
+                                    ->select('id'));
+                        });
+                    })
+                    ->visibleFrom('md'),
+
+                // Gudang tujuan (badge) + ringkasan project (satu baris, sisanya "+N")
+                Tables\Columns\TextColumn::make('tujuan')
+                    ->label('Tujuan')
+                    ->state(fn (TransaksiBarang $record): string => $record->tujuan_type === 'project'
+                        ? '🚚 Langsung ke Project'
+                        : ($record->namaTujuan() ?: '-'))
+                    ->description(function (TransaksiBarang $record): ?string {
+                        $nama = static::namaProject($record);
+                        if (empty($nama)) {
+                            return null;
+                        }
+
+                        $teks = '📌 ' . Str::limit($nama[0], 38);
+
+                        return count($nama) > 1 ? $teks . ' +' . (count($nama) - 1) : $teks;
+                    })
+                    ->tooltip(function (TransaksiBarang $record): ?string {
+                        $nama = static::namaProject($record);
+
+                        return $nama ? implode(', ', $nama) : null;
+                    })
                     ->badge()
-                    ->color(fn ($record) => $record->tujuan_type === 'project' ? 'success' : 'info'),
+                    ->color(fn (TransaksiBarang $record) => $record->tujuan_type === 'project' ? 'success' : 'info'),
 
                 Tables\Columns\TextColumn::make('details_count')
-                    ->label('Total Item')
+                    ->label('Item')
                     ->counts('details')
                     ->badge()
-                    ->color('gray'),
+                    ->color('gray')
+                    ->alignCenter(),
+
+                // Opsional: aktifkan lewat ikon kolom di kanan atas tabel
+                Tables\Columns\TextColumn::make('request_oleh')
+                    ->label('Diminta Oleh')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('diterima_oleh')
+                    ->label('Diterima Oleh')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\Filter::make('tanggal_transaksi')
@@ -287,11 +329,11 @@ class BarangMasukResource extends Resource
                         return $query
                             ->when(
                                 $data['dari_tanggal'],
-                                fn (Builder $q, $date): Builder => $q->whereDate('tanggal_transaksi', '>=', $date),
+                                fn (Builder $q, $date): Builder => $q->where('tanggal_transaksi', '>=', Carbon::parse($date)->startOfDay()),
                             )
                             ->when(
                                 $data['sampai_tanggal'],
-                                fn (Builder $q, $date): Builder => $q->whereDate('tanggal_transaksi', '<=', $date),
+                                fn (Builder $q, $date): Builder => $q->where('tanggal_transaksi', '<=', Carbon::parse($date)->endOfDay()),
                             );
                     })
                     ->indicateUsing(function (array $data): array {
@@ -308,10 +350,12 @@ class BarangMasukResource extends Resource
                     }),
             ])
             // Filter tanggal di atas tabel, responsif: 1 kolom di HP, 2 kolom di tablet ke atas
-            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->filtersFormColumns(['default' => 1, 'md' => 2])
             ->actions([
                 Tables\Actions\ViewAction::make()
+                    ->iconButton()
+                    ->tooltip('Lihat rincian')
                     ->label('View')
                     ->modalHeading('Rincian Transaksi Penerimaan Barang Masuk')
                     ->infolist([
@@ -349,6 +393,19 @@ class BarangMasukResource extends Resource
                                     })
                                     ->badge()
                                     ->color(fn ($record) => $record->tujuan_type === 'project' ? 'success' : 'info'),
+
+                                \Filament\Infolists\Components\TextEntry::make('no_bon_view')
+                                    ->label('No. Bon / Surat Jalan')
+                                    ->state(fn ($record) => $record->no_surat_jalan ?: '-'),
+
+                                \Filament\Infolists\Components\TextEntry::make('project_view')
+                                    ->label('Project / PO')
+                                    ->icon('heroicon-o-map-pin')
+                                    ->weight('bold')
+                                    ->state(fn ($record) => static::projectDenganPo($record) ?: ['-'])
+                                    ->badge()
+                                    ->color('success')
+                                    ->columnSpanFull(),
                             ])->columns(['default' => 1, 'md' => 3]),
 
                         \Filament\Infolists\Components\Section::make('Daftar Rincian Barang & Alokasi Project')
@@ -416,12 +473,15 @@ class BarangMasukResource extends Resource
                             ]),
                     ]),
 
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->iconButton()
+                    ->tooltip('Edit'),
 
                 Tables\Actions\DeleteAction::make()
                     ->iconButton()
                     ->modalHeading('Hapus Transaksi')
                     ->modalDescription('Transaksi beserta rinciannya akan dihapus dan stok dihitung ulang. Lanjutkan?')
+                    ->tooltip('Hapus')
                     ->successNotificationTitle('Transaksi berhasil dihapus'),
             ])
             ->bulkActions([
@@ -429,7 +489,49 @@ class BarangMasukResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
+            ->striped()
+            ->paginated([10, 25, 50, 100])
+            ->defaultPaginationPageOption(25)
             ->defaultSort('tanggal_transaksi', 'desc');
+    }
+
+    /**
+     * Nama project yang terkait transaksi (project PO + project tiap item), tanpa duplikat.
+     */
+    protected static function namaProject(TransaksiBarang $record): array
+    {
+        return collect([$record->purchaseOrder?->project?->nama_project])
+            ->merge($record->details->map(fn ($d) => $d->project?->nama_project))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Daftar "No. PO - Nama Project" untuk transaksi ini (tanpa duplikat).
+     * PO dari header dipakai dulu; project item lain dicarikan PO-nya dari data PO.
+     */
+    protected static function projectDenganPo(TransaksiBarang $record): array
+    {
+        $hasil = [];
+        $po = $record->purchaseOrder;
+
+        if ($po?->project) {
+            $hasil[$po->project->id] = trim(($po->no_po ? $po->no_po . ' - ' : '') . $po->project->nama_project);
+        }
+
+        foreach ($record->details as $detail) {
+            $project = $detail->project;
+            if (! $project || isset($hasil[$project->id])) {
+                continue;
+            }
+
+            $noPo = PurchaseOrder::where('project_id', $project->id)->pluck('no_po')->filter()->implode(', ');
+            $hasil[$project->id] = trim(($noPo ? $noPo . ' - ' : '') . $project->nama_project);
+        }
+
+        return array_values($hasil);
     }
 
     public static function getEloquentQuery(): Builder

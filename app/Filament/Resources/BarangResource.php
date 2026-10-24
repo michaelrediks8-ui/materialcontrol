@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class BarangResource extends Resource
 {
@@ -113,6 +114,14 @@ class BarangResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Muat relasi sekali (bukan satu per baris) agar daftar tetap ringan
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['kategoriBarang', 'satuan', 'satuanBesar']))
+            // Pencarian cepat: jeda singkat setelah mengetik, tiap kata dicari di kode / nama / spesifikasi
+            ->searchDebounce('150ms')
+            ->searchPlaceholder('Cari kode, nama, atau spesifikasi...')
+            ->defaultSort('nama_barang')
+            ->paginated([10, 25, 50, 100])
+            ->defaultPaginationPageOption(25)
             ->columns([
 
                 Tables\Columns\TextColumn::make('kode_barang')

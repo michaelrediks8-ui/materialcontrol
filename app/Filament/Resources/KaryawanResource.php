@@ -55,23 +55,20 @@ class KaryawanResource extends Resource
                                         ->placeholder('Contoh: MC'),
                                 ]),
 
-                            Forms\Components\Select::make('jabatan')
-    ->label('Jabatan / Peran')
-    ->options([
-        'Project Manager' => 'Project Manager (PM)',
-        'Supervisor' => 'Supervisor / Site Engineer',
-        'Mandor' => 'Mandor',
-        'Pekerja / Tukang' => 'Pekerja / Tukang',
-        'Driver' => 'Driver / Logistik',
-        'Staff Admin' => 'Staff Admin / Material Control',
-        'HSE / Safety' => 'HSE / Safety Officer',
-    ])
-    ->searchable()
-    ->placeholder('Pilih atau ketik jabatan baru...')
-    
-    ->createOptionUsing(fn (string $value) => $value)
-    ->default('Mandor')
-    ->required(),
+                            // Dropdown dari master Jabatan + Quick Create (+)
+                            Forms\Components\Select::make('jabatan_id')
+                                ->label('Jabatan / Peran')
+                                ->relationship('jabatan', 'nama_jabatan')
+                                ->searchable()
+                                ->preload()
+                                ->required()
+                                ->createOptionForm([
+                                    Forms\Components\TextInput::make('nama_jabatan')
+                                        ->label('Nama Jabatan Baru')
+                                        ->placeholder('Contoh: Foreman')
+                                        ->required()
+                                        ->unique('jabatans', 'nama_jabatan'),
+                                ]),
 
                             Forms\Components\TextInput::make('no_hp')
                                 ->label('No. WhatsApp / HP')
@@ -109,8 +106,11 @@ class KaryawanResource extends Resource
                     ->searchable()
                     ->placeholder('-'),
 
-                Tables\Columns\TextColumn::make('jabatan')
-                    ->searchable(),
+                Tables\Columns\TextColumn::make('jabatan.nama_jabatan')
+                    ->label('Jabatan')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('-'),
 
                 Tables\Columns\TextColumn::make('no_hp')
                     ->label('No. WhatsApp')
@@ -118,7 +118,11 @@ class KaryawanResource extends Resource
                     ->searchable()
                     ->placeholder('-'),
             ])
+            ->modifyQueryUsing(fn ($query) => $query->with(['departemen', 'jabatan']))
             ->filters([
+                Tables\Filters\SelectFilter::make('jabatan_id')
+                    ->label('Filter Jabatan')
+                    ->relationship('jabatan', 'nama_jabatan'),
                 Tables\Filters\SelectFilter::make('departemen_id')
                     ->label('Filter Departemen')
                     ->relationship('departemen', 'nama_departemen'),

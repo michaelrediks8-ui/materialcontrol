@@ -77,3 +77,5 @@ Route::get('/admin/transaksi-barangs/{record}/pdf', function (TransaksiBarang $r
 
     return $pdf->stream('Bukti-Transfer-' . $record->no_transaksi . '.pdf');
 })->name('transaksi-barang.pdf')->middleware(['web', 'auth']);
+
+Route::get('/ping', fn () => 'ok');

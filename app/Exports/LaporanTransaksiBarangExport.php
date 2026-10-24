@@ -12,10 +12,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Export Laporan Transaksi Barang ke .xlsx memakai PhpSpreadsheet langsung
- * (tanpa maatwebsite/excel, jadi tidak bergantung versi Laravel).
- */
+
 class LaporanTransaksiBarangExport
 {
     /** [judul kolom, field, lebar] */

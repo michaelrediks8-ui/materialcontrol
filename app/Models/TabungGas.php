@@ -24,6 +24,11 @@ class TabungGas extends Model
         return $this->belongsTo(JenisGas::class, 'jenis_gas_id');
     }
 
+    public function gudang()
+    {
+        return $this->belongsTo(Gudang::class, 'gudang_id');
+    }
+
     public function project()
     {
         return $this->belongsTo(Project::class);

@@ -8,6 +8,14 @@
         $data = file_get_contents($logoPath);
         $logoBase64 = 'data:image/' . $type . ';base64,' . base64_encode($data);
     }
+
+    $jabatanPenerima = null;
+    if (!empty($transaksi->diterima_oleh)) {
+        $karyawan = \DB::table('karyawans') // Sesuaikan nama tabel karyawan Anda (misal: karyawans / karyawan)
+            ->where('nama', $transaksi->diterima_oleh) // Sesuaikan nama kolom nama di tabel karyawan
+            ->first();
+        $jabatanPenerima = $karyawan->jabatan ?? null;
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -226,6 +234,11 @@
                 <p>Diterima Oleh,</p>
                 <div class="signature-space"></div>
                 <p><strong>({{ $transaksi->diterima_oleh ?? '................................' }})</strong></p>
+                
+                {{-- Menampilkan Jabatan --}}
+                @if($jabatanPenerima)
+                    <p style="margin: 2px 0 0 0;">{{ $jabatanPenerima }}</p>
+                @endif
             </td>
         </tr>
     </table>

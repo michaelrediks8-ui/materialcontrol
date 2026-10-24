@@ -2,73 +2,173 @@
 
 namespace App\Exports;
 
+use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Concerns\FromArray;
-use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithDrawings;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\WithColumnWidths;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
-use App\Exports\LaporanMutasiExport;
-use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class LaporanMutasiExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
+class LaporanMutasiExport implements FromArray, ShouldAutoSize, WithStyles, WithDrawings
 {
-    protected array $rows;
+    private const KOLOM_AKHIR = 'K';
 
-    public function __construct(array $rows)
-    {
-        $this->rows = $rows;
+    private int $barisHeaderMutasi = 0;
+    private int $barisAkhirMutasi = 0;
+    private int $barisJudulRingkasan = 0;
+    private int $barisHeaderRingkasan = 0;
+    private int $barisAkhirRingkasan = 0;
+
+    public function __construct(
+        private array $rows,
+        private array $ringkasan = [],
+        private string $periode = '',
+        private string $gudang = '',
+    ) {
     }
+
+    /** Baris kosong harus berisi satu sel agar tidak dibuang oleh Excel export. */
+    private const KOSONG = [''];
 
     public function array(): array
     {
-        return collect($this->rows)->map(function ($row) {
-            return [
-                \Carbon\Carbon::parse($row['tanggal'])->format('d/m/Y H:i'),
-                $row['no_transaksi'],
-                match ($row['jenis_transaksi']) {
-                    'masuk' => 'Barang Masuk',
-                    'keluar' => 'Barang Keluar',
-                    'transfer' => 'Transfer Gudang',
-                    default => $row['jenis_transaksi'],
-                },
-                $row['kode_barang'],
-                $row['nama_barang'],
-                $row['asal'],
-                $row['tujuan'],
-                $row['qty'],
+        $out = [];
+
+        // ===== KOP SURAT (baris 1-5): logo di kolom A, teks di tengah =====
+        $out[] = ['', 'SARANA TEKNIK PERKASA'];
+        $out[] = ['', 'Kantor Pusat : Jln. Pondok Cabe 3 Ilir'];
+        $out[] = ['', 'Pamulang, Tangerang Selatan, Banten 15418'];
+        $out[] = ['', 'Telp : 0622-7296905 / 081317060060'];
+        $out[] = ['', 'Email : sarana.stp@gmail.com'];
+        $out[] = self::KOSONG;
+
+        // ===== JUDUL LAPORAN (baris 7-8) =====
+        $out[] = ['LAPORAN MUTASI BARANG'];
+        $out[] = ['Periode: ' . ($this->periode ?: '-') . '   |   Gudang: ' . ($this->gudang ?: '-')];
+        $out[] = self::KOSONG;
+
+        // ===== TABEL MUTASI =====
+        $out[] = ['Tanggal & Jam', 'No. Transaksi', 'Jenis', 'Gudang', 'Kode', 'Barang', 'Satuan', 'Keterangan', 'Masuk', 'Keluar', 'Saldo'];
+        $this->barisHeaderMutasi = count($out);
+
+        foreach ($this->rows as $r) {
+            $out[] = [
+                $r['tanggal'] ? Carbon::parse($r['tanggal'])->format('d/m/Y H:i') : '-',
+                $r['no_transaksi'],
+                ucfirst($r['jenis_transaksi'] ?? ''),
+                $r['gudang'] ?? '',
+                $r['kode_barang'],
+                $r['nama_barang'],
+                $r['satuan'] ?? '',
+                $r['keterangan'] ?? '',
+                $r['masuk'] ?: '',
+                $r['keluar'] ?: '',
+                $r['saldo'] ?? '',
             ];
-        })->toArray();
+        }
+        $this->barisAkhirMutasi = count($out);
+
+        // ===== RINGKASAN PER BARANG =====
+        $out[] = self::KOSONG;
+        $out[] = ['RINGKASAN STOK PER BARANG (dari lalu lintas stok)'];
+        $this->barisJudulRingkasan = count($out);
+
+        $out[] = ['Kode', 'Barang', 'Satuan', 'Gudang', '', '', '', 'Saldo Awal', 'Total Masuk', 'Total Keluar', 'Sisa Stok'];
+        $this->barisHeaderRingkasan = count($out);
+
+        foreach ($this->ringkasan as $g) {
+            $out[] = [
+                $g['kode_barang'], $g['nama_barang'], $g['satuan'], $g['gudang'] ?? '', '', '', '',
+                $g['saldo_awal'], $g['masuk'], $g['keluar'], $g['sisa'],
+            ];
+        }
+        $this->barisAkhirRingkasan = count($out);
+
+        return $out;
     }
 
-    public function headings(): array
+    /** Logo di pojok kiri kop (sama seperti PDF). */
+    public function drawings()
     {
-        return [
-            'Tanggal', 'No. Transaksi', 'Jenis Transaksi', 'Kode Barang',
-            'Nama Barang', 'Asal', 'Tujuan', 'Qty',
-        ];
-    }
+        foreach (['logo-stp.png', 'logo-stp.PNG', 'logo-stp.jpg'] as $nama) {
+            $path = public_path('images/' . $nama);
 
-    public function styles(Worksheet $sheet): array
-    {
-        $sheet->getStyle('A1:H1')->applyFromArray([
-            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '1F2937'],
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-        ]);
+            if (file_exists($path)) {
+                $logo = new Drawing();
+                $logo->setName('Logo STP');
+                $logo->setPath($path);
+                $logo->setHeight(70);
+                $logo->setCoordinates('A1');
+                $logo->setOffsetX(5);
+                $logo->setOffsetY(4);
+
+                return $logo;
+            }
+        }
 
         return [];
     }
 
-    public function columnWidths(): array
+    public function styles(Worksheet $sheet)
     {
-        return [
-            'A' => 18, 'B' => 20, 'C' => 16, 'D' => 14,
-            'E' => 30, 'F' => 20, 'G' => 20, 'H' => 12,
+        $k = self::KOLOM_AKHIR;
+
+        // ----- Kop surat -----
+        foreach ([1, 2, 3, 4, 5] as $baris) {
+            $sheet->mergeCells("B{$baris}:{$k}{$baris}");
+            $sheet->getRowDimension($baris)->setRowHeight($baris === 1 ? 24 : 15);
+        }
+        $sheet->getStyle("B1:{$k}5")->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle('B1')->getFont()->setBold(true)->setSize(16);
+        $sheet->getStyle('B2:B4')->getFont()->setSize(10);
+        $sheet->getStyle('B5')->getFont()->setSize(10)->setItalic(true)->getColor()->setRGB('1A0DAB');
+        $sheet->getStyle("A5:{$k}5")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_DOUBLE);
+
+        // ----- Judul laporan -----
+        foreach ([7, 8] as $baris) {
+            $sheet->mergeCells("A{$baris}:{$k}{$baris}");
+            $sheet->getStyle("A{$baris}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        }
+        $sheet->getStyle('A7')->getFont()->setBold(true)->setSize(14)->setUnderline(true);
+        $sheet->getStyle('A8')->getFont()->setBold(true)->setSize(10);
+
+        // ----- Tabel -----
+        $garis = ['borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]];
+        $hijau = [
+            'font' => ['bold' => true],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '92D050']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ];
+
+        $this->tata($sheet, $this->barisHeaderMutasi, $this->barisAkhirMutasi, $garis, $hijau, 'I');
+
+        $sheet->getStyle("A{$this->barisJudulRingkasan}")->getFont()->setBold(true)->setSize(12);
+        $this->tata($sheet, $this->barisHeaderRingkasan, $this->barisAkhirRingkasan, $garis, $hijau, 'H');
+
+        return [];
+    }
+
+    private function tata(Worksheet $sheet, int $header, int $akhir, array $garis, array $hijau, string $angkaDari): void
+    {
+        $k = self::KOLOM_AKHIR;
+
+        if ($header < 1) {
+            return;
+        }
+
+        $sheet->getStyle("A{$header}:{$k}{$akhir}")->applyFromArray($garis);
+        $sheet->getStyle("A{$header}:{$k}{$header}")->applyFromArray($hijau);
+
+        if ($akhir > $header) {
+            $rentang = "{$angkaDari}" . ($header + 1) . ":{$k}{$akhir}";
+            $sheet->getStyle($rentang)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle($rentang)->getNumberFormat()->setFormatCode('#,##0.##');
+        }
     }
 }
