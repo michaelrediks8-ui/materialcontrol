@@ -54,11 +54,13 @@ class AdminPanelProvider extends PanelProvider
 '))
             ->brandLogoHeight('2.5rem')
             ->favicon(asset('images/logo-stp.png'))
+            // Urutan grup menu di sidebar (dari atas ke bawah)
             ->navigationGroups([
                 NavigationGroup::make('Stok Material'),
                 NavigationGroup::make('Master Data'),
                 NavigationGroup::make('Monitoring Alat'),
                 NavigationGroup::make('Laporan'),
+                NavigationGroup::make('Pengaturan Sistem'),
             ])
             // CSS global: filter tanggal di kiri, search di kanan (sejajar), Reset tetap di pojok kanan atas
             ->renderHook(

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\MembatasiGudang;
+use App\Support\HakAkses;
 use App\Filament\Resources\BarangMasukResource\Pages;
 use App\Models\Gudang;
 use App\Models\Karyawan;
@@ -22,6 +24,8 @@ use Awcodes\TableRepeater\Header;
 
 class BarangMasukResource extends Resource
 {
+    use MembatasiGudang;
+
     protected static ?string $model = TransaksiBarang::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-down-tray';
@@ -110,10 +114,11 @@ class BarangMasukResource extends Resource
 
                             Forms\Components\Select::make('tujuan_id')
                                 ->label('Pilih Gudang Penerima')
-                                ->options(fn () => Gudang::query()->whereNotNull('nama_gudang')->pluck('nama_gudang', 'id')->map(fn ($val) => (string) $val)->toArray())
+                                ->options(fn () => HakAkses::gudangSaya())
                                 ->searchable()
                                 ->preload()
                                 ->required(fn (callable $get) => $get('tujuan_type') === 'gudang')
+                                ->rules([HakAkses::ruleGudangSaya()])
                                 ->visible(fn (callable $get) => $get('tujuan_type') === 'gudang'),
                         ]),
 
@@ -350,7 +355,7 @@ class BarangMasukResource extends Resource
                     }),
             ])
             // Filter tanggal di atas tabel, responsif: 1 kolom di HP, 2 kolom di tablet ke atas
-            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContentCollapsible)
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
             ->filtersFormColumns(['default' => 1, 'md' => 2])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -474,10 +479,12 @@ class BarangMasukResource extends Resource
                     ]),
 
                 Tables\Actions\EditAction::make()
+                    ->visible(fn (TransaksiBarang $record) => static::canEdit($record))
                     ->iconButton()
                     ->tooltip('Edit'),
 
                 Tables\Actions\DeleteAction::make()
+                    ->visible(fn (TransaksiBarang $record) => static::canDelete($record))
                     ->iconButton()
                     ->modalHeading('Hapus Transaksi')
                     ->modalDescription('Transaksi beserta rinciannya akan dihapus dan stok dihitung ulang. Lanjutkan?')
@@ -486,7 +493,7 @@ class BarangMasukResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    static::aksiHapusMassal(),
                 ]),
             ])
             ->striped()
@@ -536,7 +543,7 @@ class BarangMasukResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()
+        return HakAkses::batasiQuery(static::class, parent::getEloquentQuery())
             ->orderBy('no_transaksi', 'desc');
     }
 

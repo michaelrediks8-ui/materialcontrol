@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\MembatasiGudang;
+use App\Support\HakAkses;
 use App\Filament\Resources\BarangKeluarResource\Pages;
 use App\Filament\Support\BarangSelect;
 use App\Models\Gudang;
@@ -22,6 +24,8 @@ use Awcodes\TableRepeater\Header;
 
 class BarangKeluarResource extends Resource
 {
+    use MembatasiGudang;
+
     protected static ?string $model = TransaksiBarang::class;
     protected static ?string $navigationIcon = 'heroicon-o-arrow-up-tray';
     protected static ?string $navigationLabel = 'Barang Keluar';
@@ -72,16 +76,11 @@ class BarangKeluarResource extends Resource
                         Forms\Components\Grid::make(2)->schema([
                             Forms\Components\Select::make('asal_id')
                                 ->label('Dari Gudang Asal')
-                                ->options(function (): array {
-                                    return Gudang::query()
-                                        ->whereNotNull('nama_gudang')
-                                        ->pluck('nama_gudang', 'id')
-                                        ->map(fn ($nama) => (string) $nama)
-                                        ->toArray();
-                                })
+                                ->options(fn () => HakAkses::gudangSaya())
                                 ->searchable()
                                 ->preload()
-                                ->required(),
+                                ->required()
+                                ->rules([HakAkses::ruleGudangSaya()]),
 
                             Forms\Components\Select::make('tujuan_id')
                                 ->label('Ke Project / PO Tujuan')
@@ -290,8 +289,10 @@ class BarangKeluarResource extends Resource
                             ]),
                     ]),
 
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn (TransaksiBarang $record) => static::canEdit($record)),
                 Tables\Actions\DeleteAction::make()
+    ->visible(fn (TransaksiBarang $record) => static::canDelete($record))
     ->iconButton()   // ikon saja, supaya tidak memakan lebar di HP
     ->modalHeading('Hapus Transaksi')
     ->modalDescription('Transaksi beserta rinciannya akan dihapus dan stok dihitung ulang. Lanjutkan?')
@@ -299,7 +300,7 @@ class BarangKeluarResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    static::aksiHapusMassal(),
                 ]),
             ])
             ->defaultSort('tanggal_transaksi', 'desc');

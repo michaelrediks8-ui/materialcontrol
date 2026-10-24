@@ -9,7 +9,6 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Hash;
 
 class UserResource extends Resource
 {
@@ -53,12 +52,14 @@ class UserResource extends Resource
                                 'staff' => '👤 Staf Biasa / Viewer',
                             ])
                             ->default('staff')
-                            ->required(),
+                            ->required()
+                            ->live(),
 
+                        // Model sudah memakai cast 'hashed', jadi tidak perlu Hash::make lagi di sini
                         Forms\Components\TextInput::make('password')
                             ->label('Password')
                             ->password()
-                            ->dehydrateStateUsing(fn ($state) => Hash::make($state))
+                            ->revealable()
                             ->dehydrated(fn ($state) => filled($state))
                             ->required(fn (string $context): bool => $context === 'create')
                             ->placeholder(fn (string $context) => $context === 'edit' ? 'Kosongkan jika tidak ubah password' : ''),
@@ -69,6 +70,44 @@ class UserResource extends Resource
                             ->default(true)
                             ->required(),
                     ])->columns(2),
+
+                Forms\Components\Section::make('Hak Akses Data')
+                    ->description('Tentukan apa yang boleh dilakukan user ini dan di gudang mana.')
+                    ->schema([
+                        Forms\Components\Placeholder::make('info_admin')
+                            ->hiddenLabel()
+                            ->content('👑 Super Admin otomatis punya akses penuh ke semua gudang dan semua izin.')
+                            ->visible(fn (callable $get) => $get('role') === 'admin')
+                            ->columnSpanFull(),
+
+                        Forms\Components\Toggle::make('can_input')
+                            ->label('Boleh Input Data')
+                            ->helperText('Menambah data baru (registrasi, barang masuk, dll).')
+                            ->default(true)
+                            ->visible(fn (callable $get) => $get('role') !== 'admin'),
+
+                        Forms\Components\Toggle::make('can_keluar')
+                            ->label('Boleh Mengeluarkan Barang / Alat')
+                            ->helperText('Transfer, pemakaian, dan peminjaman.')
+                            ->default(true)
+                            ->visible(fn (callable $get) => $get('role') !== 'admin'),
+
+                        Forms\Components\Toggle::make('can_delete')
+                            ->label('Boleh Hapus Data')
+                            ->helperText('Menghapus data transaksi.')
+                            ->default(false)
+                            ->visible(fn (callable $get) => $get('role') !== 'admin'),
+
+                        Forms\Components\Select::make('gudangs')
+                            ->label('Gudang / Area yang Boleh Diakses')
+                            ->relationship('gudangs', 'nama_gudang')
+                            ->multiple()
+                            ->preload()
+                            ->searchable()
+                            ->helperText('User hanya bisa input dan mengeluarkan di gudang yang dipilih.')
+                            ->visible(fn (callable $get) => $get('role') !== 'admin')
+                            ->columnSpanFull(),
+                    ])->columns(3),
             ]);
     }
 
@@ -89,7 +128,8 @@ class UserResource extends Resource
 
                 Tables\Columns\TextColumn::make('no_hp')
                     ->label('No. HP')
-                    ->placeholder('-'),
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('role')
                     ->label('Role')
@@ -107,8 +147,29 @@ class UserResource extends Resource
                         default => 'gray',
                     }),
 
+                Tables\Columns\TextColumn::make('gudangs.nama_gudang')
+                    ->label('Gudang')
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder(fn (User $record) => $record->isAdmin() ? 'Semua Gudang' : 'Belum diatur'),
+
+                Tables\Columns\IconColumn::make('can_input')
+                    ->label('Input')
+                    ->boolean()
+                    ->state(fn (User $record) => $record->bolehInput()),
+
+                Tables\Columns\IconColumn::make('can_keluar')
+                    ->label('Keluar')
+                    ->boolean()
+                    ->state(fn (User $record) => $record->bolehKeluar()),
+
+                Tables\Columns\IconColumn::make('can_delete')
+                    ->label('Hapus')
+                    ->boolean()
+                    ->state(fn (User $record) => $record->bolehHapus()),
+
                 Tables\Columns\IconColumn::make('is_active')
-                    ->label('Status')
+                    ->label('Aktif')
                     ->boolean()
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-x-circle')
@@ -133,7 +194,8 @@ class UserResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->hidden(fn (User $record) => $record->id === auth()->id()),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

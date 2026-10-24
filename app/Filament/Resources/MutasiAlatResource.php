@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\MembatasiGudang;
+use App\Support\HakAkses;
 use App\Filament\Resources\MutasiAlatResource\Pages;
 use App\Models\Gudang;
 use App\Models\Karyawan;
@@ -9,8 +11,10 @@ use App\Models\MutasiAlat;
 use Awcodes\TableRepeater\Components\TableRepeater;
 use Awcodes\TableRepeater\Header;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Closure;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
@@ -21,6 +25,8 @@ use Illuminate\Support\Carbon;
 
 class MutasiAlatResource extends Resource
 {
+    use MembatasiGudang;
+
     protected static ?string $model = MutasiAlat::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-truck';
@@ -29,6 +35,23 @@ class MutasiAlatResource extends Resource
     protected static ?string $slug = 'mutasi-alat';
     protected static ?string $modelLabel = 'Mutasi Alat';
     protected static ?string $pluralModelLabel = 'Mutasi Alat';
+
+    // Jenis mutasi yang boleh dipilih user (izin per jenis diatur di config/hak_akses.php)
+    protected static function jenisMutasiOptions(): array
+    {
+        $semua = [
+            'registrasi' => '📋 Registrasi / Stok Awal (Hasil Hitung Fisik)',
+            'transfer' => '🔄 Transfer Antar Gudang',
+            'rusak' => '❌ Tandai Rusak (di gudang yang sama)',
+            'perbaikan' => '✅ Tandai Selesai Diperbaiki',
+        ];
+
+        return array_filter(
+            $semua,
+            fn ($label, $key) => HakAkses::bolehIzin(HakAkses::izinUntukNilai(static::class, $key)),
+            ARRAY_FILTER_USE_BOTH
+        );
+    }
 
     public static function form(Form $form): Form
     {
@@ -67,13 +90,8 @@ class MutasiAlatResource extends Resource
 
                         Forms\Components\Select::make('jenis_mutasi')
                             ->label('Jenis Mutasi')
-                            ->options([
-                                'registrasi' => '📋 Registrasi / Stok Awal (Hasil Hitung Fisik)',
-                                'transfer' => '🔄 Transfer Antar Gudang',
-                                'rusak' => '❌ Tandai Rusak (di gudang yang sama)',
-                                'perbaikan' => '✅ Tandai Selesai Diperbaiki',
-                            ])
-                            ->default('registrasi')
+                            ->options(fn () => static::jenisMutasiOptions())
+                            ->default(fn () => array_key_first(static::jenisMutasiOptions()))
                             ->required()
                             ->live()
                             ->afterStateUpdated(function (callable $set) {
@@ -90,9 +108,11 @@ class MutasiAlatResource extends Resource
                         Forms\Components\Grid::make(2)->schema([
                             Forms\Components\Select::make('asal_id')
                                 ->label('Dari Gudang')
-                                ->options(fn () => Gudang::pluck('nama_gudang', 'id'))
+                                ->options(fn () => HakAkses::gudangSaya())
                                 ->searchable()
                                 ->required()
+                                ->live()
+                                ->rules([HakAkses::ruleGudangSaya()])
                                 ->visible(fn (callable $get) => $get('jenis_mutasi') === 'transfer'),
 
                             Forms\Components\Select::make('tujuan_id')
@@ -100,10 +120,33 @@ class MutasiAlatResource extends Resource
                                     'transfer' => 'Ke Gudang',
                                     default => 'Di Gudang',
                                 })
-                                ->options(fn () => Gudang::pluck('nama_gudang', 'id'))
+                                ->options(function (callable $get) {
+                                    if ($get('jenis_mutasi') === 'transfer') {
+                                        return collect(HakAkses::gudangSemua())
+                                            ->when($get('asal_id'), fn ($c, $asal) => $c->except([(string) $asal]))
+                                            ->toArray();
+                                    }
+
+                                    return HakAkses::gudangSaya();
+                                })
                                 ->searchable()
                                 ->required()
                                 ->live()
+                                ->rules([
+                                    fn (Get $get): Closure => function (string $attribute, $value, Closure $fail) use ($get) {
+                                        if ($get('jenis_mutasi') === 'transfer') {
+                                            if ((string) $value === (string) $get('asal_id')) {
+                                                $fail('Gudang tujuan tidak boleh sama dengan gudang asal.');
+                                            }
+
+                                            return;
+                                        }
+
+                                        if (! HakAkses::user()?->bolehAksesGudang($value)) {
+                                            $fail('Anda tidak punya akses ke gudang yang dipilih.');
+                                        }
+                                    },
+                                ])
                                 ->afterStateUpdated(function (callable $get, callable $set) {
                                     if ($get('jenis_mutasi') !== 'transfer') {
                                         $set('asal_id', $get('tujuan_id'));
@@ -341,11 +384,12 @@ class MutasiAlatResource extends Resource
                     ->url(fn (MutasiAlat $record) => route('mutasi-alat.preview-pdf', $record))
                     ->openUrlInNewTab(),
 
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn (MutasiAlat $record) => static::canEdit($record)),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    static::aksiHapusMassal(),
                 ]),
             ]);
     }
